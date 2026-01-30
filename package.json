@@ -1,0 +1,43 @@
+{
+  "name": "auth-service",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "2": "^3.0.0",
+    "@types/bun": "latest",
+    "@types/express": "^5.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
+    "argon": "^2.0.21",
+    "cors": "^2.8.5",
+    "pino": "^10.1.0",
+    "pino-pretty": "^13.1.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@prisma/client": "6.9.0",
+    "@types/cors": "^2.8.19",
+    "argon2": "^0.44.0",
+    "crypto": "^1.0.1",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "jwt": "^0.2.0",
+    "logger": "^0.0.1",
+    "prettier": "^3.6.2",
+    "prisma": "6.9.0",
+    "tslog": "^4.10.2",
+    "zod": "^4.1.12"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "start": "bun run src/index.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "format": "prettier --write .",
+    "lint": "eslint . --ext .ts"
+  }
+}

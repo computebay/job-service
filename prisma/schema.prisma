@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////
+// ENUMS
+//////////////////////
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+//////////////////////
+// JOBS (CORE TRUTH)
+//////////////////////
+
+model Job {
+  id             String    @id @default(uuid()) @db.Uuid
+  ownerUserId    String    @db.Uuid
+
+  status         JobStatus
+  priority       Int       @default(0)
+
+  // Execution definition
+  jobType        String    // "batch"
+  runtime        String    // "node18", "python3.11"
+  entrypoint     String[]  // ["node", "main.js"]
+
+  // Execution config
+  resources      Json      // { cpu, memoryMB, timeoutSec }
+  retryPolicy    Json?     // { maxAttempts, backoff }
+
+  // Artifacts
+  inputArtifacts  Json     // { code: "s3://..." }
+  outputArtifacts Json?
+
+  // Billing
+  costEstimate   Decimal?
+  costActual     Decimal?
+
+  // Timestamps
+  createdAt      DateTime  @default(now())
+  scheduledAt    DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+
+  // Relations
+  attempts       JobAttempt[]
+  outboxEvents   OutboxEvent[]
+
+  @@index([ownerUserId])
+  @@index([status])
+  @@map("jobs")
+}
+
+//////////////////////
+// JOB ATTEMPTS
+//////////////////////
+
+model JobAttempt {
+  id        String   @id @default(uuid()) @db.Uuid
+  jobId     String   @db.Uuid
+  attemptNo Int
+  reason    String?
+  createdAt DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, attemptNo])
+  @@index([jobId])
+  @@map("job_attempts")
+}
+
+//////////////////////
+// IDEMPOTENCY
+//////////////////////
+
+model IdempotencyKey {
+  key         String
+  ownerUserId String   @db.Uuid
+  jobId       String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  @@id([key, ownerUserId])
+  @@index([jobId])
+  @@map("idempotency_keys")
+}
+
+//////////////////////
+// OUTBOX EVENTS
+//////////////////////
+
+model OutboxEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  aggregateType String   // "job"
+  aggregateId   String   @db.Uuid
+  eventType     String   // JOB_CREATED, JOB_COMPLETED, etc
+  payload       Json
+  published     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  job Job? @relation(fields: [aggregateId], references: [id], onDelete: Cascade)
+
+  @@index([published])
+  @@index([aggregateType, aggregateId])
+  @@map("outbox_events")
+}

@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    // "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    // "noEmit": true,
+    // Strictness & best practices
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "typeRoots": ["./src/types", "./node_modules/@types"]
+  },
+  "include": ["src", "prisma.config.ts"]
+}
