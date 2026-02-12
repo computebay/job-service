@@ -1,5 +1,5 @@
 import { db } from "../../libs/prisma";
-import { Job, JobStatus, OutboxEvent } from "@prisma/client";
+import { Job, JobStatus, OutboxEvent, Prisma } from "@prisma/client";
 import { CreateJobInput } from "../../types/job.types";
 
 export class JobRepository {
@@ -27,7 +27,7 @@ export class JobRepository {
           entrypoint: input.entrypoint,
           resources: input.resources,
           inputArtifacts: input.inputArtifacts,
-          retryPolicy: input.retryPolicy || null,
+          retryPolicy: input.retryPolicy || Prisma.JsonNull,
           priority: input.priority || 0,
         },
       });

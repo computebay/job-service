@@ -6,7 +6,7 @@ export interface CreateJobInput {
   entrypoint: string[];
   resources: Record<string, any>;
   inputArtifacts: Record<string, any>;
-  retryPolicy?: Record<string, any>;
+  retryPolicy?: Record<string, any> | null;
   priority?: number;
 }
 
