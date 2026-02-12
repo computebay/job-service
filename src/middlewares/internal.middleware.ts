@@ -24,7 +24,7 @@ export async function internalMiddleware(
         message: "Invalid internal token",
       });
     }
-  } catch (error) {
+  } catch (error : any) {
     logger.error("Internal middleware error:", error);
     return reply.status(500).send({
       error: "INTERNAL_ERROR",
