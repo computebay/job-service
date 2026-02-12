@@ -1,7 +1,7 @@
 import { FastifyRequest } from "fastify";
 
 export interface AuthPayload {
-  userId: string;
+  sub: string; // User ID (subject)
   orgId: string;
   role: string;
   iat: number;

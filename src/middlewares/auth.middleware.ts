@@ -38,6 +38,15 @@ export async function authMiddleware(
         });
       }
 
+      // Validate required fields
+      if (!decoded.sub || !decoded.orgId) {
+        logger.warn("Token missing required fields");
+        return reply.status(401).send({
+          error: "INVALID_TOKEN",
+          message: "Token missing required fields (sub, orgId)",
+        });
+      }
+
       (request as AuthenticatedRequest).user = decoded;
     } catch (error) {
       logger.warn("Failed to decode token");

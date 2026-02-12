@@ -20,7 +20,7 @@ export class JobController {
   ): Promise<void> {
     try {
       const authReq = request as AuthenticatedRequest;
-      const userId = authReq.user.userId;
+      const userId = authReq.user.sub; // Use 'sub' from JWT
       const orgId = authReq.user.orgId;
       const idempotencyKey = request.headers["idempotency-key"] as string;
 
@@ -97,7 +97,7 @@ export class JobController {
     try {
       const { id } = request.params as { id: string };
       const authReq = request as AuthenticatedRequest;
-      const userId = authReq.user.userId;
+      const userId = authReq.user.sub; // Use 'sub' from JWT
       const orgId = authReq.user.orgId;
 
       const job = await jobService.getJob(id);
@@ -155,7 +155,7 @@ export class JobController {
   ): Promise<void> {
     try {
       const authReq = request as AuthenticatedRequest;
-      const userId = authReq.user.userId;
+      const userId = authReq.user.sub; // Use 'sub' from JWT
       const orgId = authReq.user.orgId;
 
       const limit = Math.min(
@@ -216,7 +216,7 @@ export class JobController {
     try {
       const { id } = request.params as { id: string };
       const authReq = request as AuthenticatedRequest;
-      const userId = authReq.user.userId;
+      const userId = authReq.user.sub; // Use 'sub' from JWT
       const orgId = authReq.user.orgId;
 
       const job = await jobService.getJob(id);
