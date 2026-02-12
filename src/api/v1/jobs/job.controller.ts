@@ -4,9 +4,9 @@ import {
   createJobSchema,
   updateJobStateSchema,
   cancelJobSchema,
-} from "../";
-import { AuthenticatedRequest } from "../../types/auth";
-import { logger } from "../../libs/logger";
+} from "../../../validators/job.schema";
+import { AuthenticatedRequest } from "../../../types/auth";
+import { logger } from "../../../libs/logger";
 import { z } from "zod";
 
 export class JobController {
@@ -41,6 +41,14 @@ export class JobController {
       );
 
       const job = await jobService.createJob(body, userId, orgId, idempotencyKey);
+
+      if (!job) {
+        reply.status(500).send({
+          error: "INTERNAL_ERROR",
+          message: "Failed to create job",
+        });
+        return;
+      }
 
       reply.status(201).send({
         id: job.id,

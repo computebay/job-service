@@ -8,6 +8,7 @@ export const createJobSchema = z.object({
   inputArtifacts: z.record(z.any()),
   retryPolicy: z.record(z.any()).optional(),
   priority: z.number().int().min(0).max(10).optional().default(0),
+  orgId:z.string()
 });
 
 export const updateJobStateSchema = z.object({
