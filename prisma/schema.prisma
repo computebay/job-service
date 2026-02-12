@@ -1,6 +1,5 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 datasource db {
   provider = "postgresql"
@@ -24,41 +23,38 @@ enum JobStatus {
 //////////////////////
 
 model Job {
-  id             String    @id @default(uuid()) @db.Uuid
-  ownerUserId    String    @db.Uuid
-
-  status         JobStatus
-  priority       Int       @default(0)
+  id              String     @id @default(uuid()) @db.Uuid
+  ownerUserId     String
+  orgId           String
+  status          JobStatus  @default(QUEUED)
+  priority        Int        @default(0)
 
   // Execution definition
-  jobType        String    // "batch"
-  runtime        String    // "node18", "python3.11"
-  entrypoint     String[]  // ["node", "main.js"]
+  jobType         String     // "batch"
+  runtime         String     // "node18", "python3.11"
+  entrypoint      String[]   // ["node", "main.js"]
 
   // Execution config
-  resources      Json      // { cpu, memoryMB, timeoutSec }
-  retryPolicy    Json?     // { maxAttempts, backoff }
+  resources       Json       // { cpu, memoryMB, timeoutSec }
+  retryPolicy     Json?      // { maxAttempts, backoff }
 
   // Artifacts
-  inputArtifacts  Json     // { code: "s3://..." }
+  inputArtifacts  Json       // { code: "s3://..." }
   outputArtifacts Json?
 
-  // Billing
-  costEstimate   Decimal?
-  costActual     Decimal?
-
   // Timestamps
-  createdAt      DateTime  @default(now())
-  scheduledAt    DateTime?
-  startedAt      DateTime?
-  completedAt    DateTime?
+  createdAt       DateTime   @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
 
   // Relations
-  attempts       JobAttempt[]
-  outboxEvents   OutboxEvent[]
+  attempts        JobAttempt[]
+  idempotencyKeys IdempotencyKey[]
+  outboxEvents    OutboxEvent[]
 
-  @@index([ownerUserId])
+  @@index([ownerUserId, orgId])
   @@index([status])
+  @@index([createdAt])
   @@map("jobs")
 }
 
@@ -86,9 +82,11 @@ model JobAttempt {
 
 model IdempotencyKey {
   key         String
-  ownerUserId String   @db.Uuid
+  ownerUserId String
   jobId       String   @db.Uuid
   createdAt   DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@id([key, ownerUserId])
   @@index([jobId])
@@ -108,9 +106,10 @@ model OutboxEvent {
   published     Boolean  @default(false)
   createdAt     DateTime @default(now())
 
-  job Job? @relation(fields: [aggregateId], references: [id], onDelete: Cascade)
+  job Job @relation(fields: [aggregateId], references: [id], onDelete: Cascade)
 
   @@index([published])
   @@index([aggregateType, aggregateId])
+  @@index([createdAt])
   @@map("outbox_events")
 }

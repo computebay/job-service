@@ -1,23 +1,30 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "target": "ESNext",
-    "module": "Preserve",
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "ES2020",
     "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "allowJs": true,
-    // "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": false,
-    // "noEmit": true,
-    // Strictness & best practices
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "resolveJsonModule": true,
+    "allowJs": false,
     "strict": true,
     "skipLibCheck": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "typeRoots": ["./src/types", "./node_modules/@types"]
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "typeRoots": ["./node_modules/@types"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
-  "include": ["src", "prisma.config.ts"]
+  "include": ["src/**/*.ts", "prisma/schema.prisma"],
+  "exclude": ["node_modules", "dist"]
 }
