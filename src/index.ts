@@ -29,16 +29,13 @@ async function bootstrap() {
   await internalRoutes(app);
 
   // Set up periodic outbox event publishing (every 5 seconds)
-  setInterval(
-    async () => {
-      try {
-        await jobService.publishOutboxEvents();
-      } catch (error) {
-        logger.error({ error }, "Error publishing outbox events");
-      }
-    },
-    5000
-  );
+  setInterval(async () => {
+    try {
+      await jobService.publishOutboxEvents();
+    } catch (error) {
+      logger.error({ error }, "Error publishing outbox events");
+    }
+  }, 5000);
 
   // Error handler
   app.setErrorHandler((error, request, reply) => {
@@ -53,7 +50,7 @@ async function bootstrap() {
     await app.listen({ port: config.app.port, host: config.app.host });
     logger.info(
       { port: config.app.port, host: config.app.host },
-      "Job Service started"
+      "Job Service started",
     );
   } catch (error) {
     logger.error({ error }, "Failed to start server");

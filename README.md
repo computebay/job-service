@@ -24,12 +24,14 @@ Server runs on `http://localhost:3000`
 ## Architecture Overview
 
 The Job Service is responsible for:
+
 - **Job lifecycle management**: QUEUED → RUNNING → COMPLETED/FAILED/CANCELLED
 - **Idempotent job creation**: Prevents duplicate job submissions
 - **Outbox pattern**: Ensures reliable event publishing to message queues
 - **State validation**: Enforces valid state transitions
 
 The service does **NOT** handle:
+
 - Job scheduling (external component)
 - Job execution (workers handle this)
 - Worker management
@@ -46,6 +48,7 @@ The service does **NOT** handle:
 ## State Machine
 
 Allowed transitions:
+
 ```
 QUEUED -> RUNNING
 QUEUED -> CANCELLED
@@ -59,15 +62,18 @@ Terminal states: COMPLETED, FAILED, CANCELLED
 ## API Endpoints
 
 ### Public (JWT required)
+
 - `POST /api/v1/jobs` - Create job (requires `Idempotency-Key` header)
 - `GET /api/v1/jobs` - List jobs
 - `GET /api/v1/jobs/:id` - Get job
 - `POST /api/v1/jobs/:id/cancel` - Cancel job
 
 ### Internal (X-Internal-Token required)
+
 - `POST /api/v1/internal/jobs/:id/state` - Update job state
 
 ### Health
+
 - `GET /health` - Health check
 
 ## Example: Create a Job

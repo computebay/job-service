@@ -5,7 +5,9 @@ export const config = {
     environment: process.env.NODE_ENV || "development",
   },
   database: {
-    url: process.env.DATABASE_URL || "postgresql://user:password@localhost:5432/job_service",
+    url:
+      process.env.DATABASE_URL ||
+      "postgresql://user:password@localhost:5432/job_service",
   },
   jwt: {
     enabled: process.env.JWT_ENABLED !== "false",

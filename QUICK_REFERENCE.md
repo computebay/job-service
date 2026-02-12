@@ -3,6 +3,7 @@
 ## What is This Service?
 
 A REST API that manages the lifecycle of computational jobs. Think of it as a "job coordinator" that:
+
 - Stores job definitions
 - Tracks job status (QUEUED → RUNNING → COMPLETED/FAILED)
 - Prevents duplicate submissions
@@ -53,6 +54,7 @@ Why? If the server crashes after creating a job but before publishing the event,
 ## HTTP API Cheat Sheet
 
 ### Create Job
+
 ```bash
 POST /api/v1/jobs
 Headers:
@@ -69,6 +71,7 @@ Body:
 ```
 
 ### Get Job
+
 ```bash
 GET /api/v1/jobs/:id
 Headers:
@@ -76,6 +79,7 @@ Headers:
 ```
 
 ### List Jobs
+
 ```bash
 GET /api/v1/jobs?limit=50&offset=0
 Headers:
@@ -83,6 +87,7 @@ Headers:
 ```
 
 ### Cancel Job
+
 ```bash
 POST /api/v1/jobs/:id/cancel
 Headers:
@@ -90,6 +95,7 @@ Headers:
 ```
 
 ### Update Job State (Internal)
+
 ```bash
 POST /api/v1/internal/jobs/:id/state
 Headers:
@@ -102,6 +108,7 @@ Body:
 ```
 
 ### Health Check
+
 ```bash
 GET /health
 ```
@@ -139,16 +146,17 @@ src/
 
 ## Database Tables
 
-| Table | Purpose |
-|-------|---------|
-| `jobs` | Job definitions & status |
-| `job_attempts` | Track retry attempts |
-| `idempotency_keys` | Prevent duplicate creation |
-| `outbox_events` | Events awaiting publication |
+| Table              | Purpose                     |
+| ------------------ | --------------------------- |
+| `jobs`             | Job definitions & status    |
+| `job_attempts`     | Track retry attempts        |
+| `idempotency_keys` | Prevent duplicate creation  |
+| `outbox_events`    | Events awaiting publication |
 
 ## Common Tasks
 
 ### Run Locally
+
 ```bash
 bun install
 cp .env.example .env
@@ -157,18 +165,21 @@ bun run dev
 ```
 
 ### Setup Database
+
 ```bash
 bun run prisma:migrate    # Create/update schema
 bun run prisma:studio    # Browse data with UI
 ```
 
 ### Build for Production
+
 ```bash
 bun run build
 bun run start
 ```
 
 ### Docker
+
 ```bash
 docker build -t job-service .
 docker run -p 3000:3000 -e DATABASE_URL="..." job-service
@@ -184,6 +195,7 @@ docker run -p 3000:3000 -e DATABASE_URL="..." job-service
 ## What Happens Behind the Scenes
 
 ### When You Create a Job:
+
 1. Request arrives with JWT token
 2. JWT is decoded, user extracted
 3. Request body validated against Zod schema
@@ -194,6 +206,7 @@ docker run -p 3000:3000 -e DATABASE_URL="..." job-service
 8. Response returned with job ID
 
 ### Every 5 Seconds:
+
 1. Background poller wakes up
 2. Queries for unpublished events: `SELECT * FROM outbox_events WHERE published = false`
 3. For each event, logs it (stub - would send to message queue)
@@ -215,17 +228,21 @@ INTERNAL_TOKEN=secret          # Internal service token
 ## Troubleshooting
 
 **"Missing Idempotency-Key" Error**
+
 - Add `Idempotency-Key` header to POST /api/v1/jobs request
 
 **"Invalid state transition" Error**
+
 - Trying to move job from invalid state (e.g., COMPLETED → RUNNING)
 - Check allowed transitions above
 
 **"Unauthorized" Error**
+
 - Missing or expired JWT token
 - Verify token from Auth Service
 
 **"Forbidden" Error**
+
 - Wrong `X-Internal-Token` for internal endpoints
 - Verify `INTERNAL_TOKEN` env var
 

@@ -11,7 +11,7 @@ export const verifyToken = (token: string) => {
       throw new AppError("Invalid token payload", 401, "INVALID_TOKEN");
     }
 
-    return decoded ;
+    return decoded;
   } catch {
     throw new AppError("Invalid or expired token", 401, "INVALID_TOKEN");
   }

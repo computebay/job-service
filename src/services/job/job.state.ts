@@ -13,7 +13,7 @@ export class InvalidStateTransitionError extends Error {
  */
 export function validateStateTransition(
   currentStatus: JobStatus,
-  newStatus: JobStatus
+  newStatus: JobStatus,
 ): void {
   const validTransitions: Record<JobStatus, JobStatus[]> = {
     QUEUED: [JobStatus.RUNNING, JobStatus.CANCELLED],
@@ -33,7 +33,10 @@ export function validateStateTransition(
 /**
  * Get event type based on status transition
  */
-export function getEventType(fromStatus: JobStatus, toStatus: JobStatus): string {
+export function getEventType(
+  fromStatus: JobStatus,
+  toStatus: JobStatus,
+): string {
   const eventMap: Record<string, string> = {
     [`${JobStatus.QUEUED}→${JobStatus.RUNNING}`]: "JOB_STARTED",
     [`${JobStatus.RUNNING}→${JobStatus.COMPLETED}`]: "JOB_COMPLETED",

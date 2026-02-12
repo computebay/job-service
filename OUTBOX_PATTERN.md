@@ -17,14 +17,14 @@ Result: Order exists in DB, but customer never gets email. **Inconsistency!**
 async function createJob(input) {
   // Step 1: Save to DB
   const job = await db.job.create(input);
-  
+
   // Step 2: Publish event
   // ⚠️ CRASH HERE? Event lost, but DB has the job!
   await queue.publish({
     eventType: "JOB_CREATED",
-    jobId: job.id
+    jobId: job.id,
   });
-  
+
   return job;
 }
 ```
@@ -37,7 +37,7 @@ async function createJob(input) {
   return db.$transaction(async (tx) => {
     // Step 1: Save job AND event in same transaction
     const job = await tx.job.create(input);
-    
+
     // Step 2: Save event to DB (not to queue!)
     await tx.outboxEvent.create({
       jobId: job.id,
@@ -45,7 +45,7 @@ async function createJob(input) {
       payload: { ... },
       published: false  // Mark as unpublished
     });
-    
+
     // Step 3: Commit both together
     // If crash here → everything rolled back
     // If crash after → event in DB waiting to be published
@@ -99,12 +99,12 @@ Timeline:
   10:00:05 - Poller wakes up, finds unpublished event
   10:00:05 - Event logged to queue ✓
   10:00:05 - SERVER CRASHES 💥
-  
+
 WITHOUT OUTBOX:
   Event was in memory, never persisted
   Next startup: Event lost forever
   Result: Job exists, but downstream systems never knew
-  
+
 WITH OUTBOX:
   Event still in DB with published=false
   Next startup: Poller restarts
@@ -147,6 +147,7 @@ id                | aggregateId       | eventType    | payload | published | cre
 ```
 
 Poller will process rows with `published = false`:
+
 - Row 1 (not yet published)
 - Row 2 (not yet published)
 
@@ -156,20 +157,23 @@ Row 3 is already published, skip it.
 
 | Polling Interval | Latency | CPU Load | DB Queries/min |
 |─────────────────|---------|----------|──────────────--|
-| 1 second        | ~0.5s   | High     | 60             |
-| **5 seconds**   | **~2.5s** | **Medium** | **12**         |
-| 30 seconds      | ~15s    | Low      | 2              |
-| 60 seconds      | ~30s    | Very Low | 1              |
+| 1 second | ~0.5s | High | 60 |
+| **5 seconds** | **~2.5s** | **Medium** | **12** |
+| 30 seconds | ~15s | Low | 2 |
+| 60 seconds | ~30s | Very Low | 1 |
 
 **Why not 1 second?**
+
 - Wastes resources querying 60x per minute
 - For job service, events aren't critical milliseconds
 
 **Why not 30 seconds?**
+
 - Job event latency becomes noticeable
 - User creates job → visible update delayed 30s
 
 **5 seconds is the sweet spot:**
+
 - Events published within 5 seconds (acceptable UX)
 - Reasonable resource usage
 - Good resilience to failures
@@ -183,7 +187,7 @@ To change polling interval, edit `src/index.ts`:
 // Currently 5 seconds
 setInterval(async () => {
   await jobService.publishOutboxEvents();
-}, 5000);  // ← Change this number (milliseconds)
+}, 5000); // ← Change this number (milliseconds)
 
 // For production with high throughput, might use:
 // 2000  (2 seconds)  - more aggressive
@@ -193,12 +197,15 @@ setInterval(async () => {
 ## Guarantees Provided
 
 ### 1. **Atomicity**
+
 Job and event always saved together, never partially.
 
 ### 2. **No Event Loss**
+
 If system crashes, events are in DB waiting to be republished.
 
 ### 3. **At-Least-Once Delivery**
+
 Events are published at least once. Consumers should be idempotent.
 
 ```typescript
@@ -206,15 +213,15 @@ Events are published at least once. Consumers should be idempotent.
 async function handleJobCreated(event) {
   // Check if we already processed this event
   const existing = await eventLog.findOne({ eventId: event.id });
-  
+
   if (existing) {
     // Already processed, skip
     return;
   }
-  
+
   // Process event
   await notificationService.sendEmail(event.jobId);
-  
+
   // Record that we processed it
   await eventLog.create({ eventId: event.id });
 }
@@ -263,24 +270,24 @@ When replacing stub with real queue (RabbitMQ, Kafka, etc.):
 async function publishOutboxEvents() {
   const events = await db.outboxEvent.findMany({
     where: { published: false },
-    orderBy: { createdAt: 'asc' },
-    take: 100
+    orderBy: { createdAt: "asc" },
+    take: 100,
   });
 
   for (const event of events) {
     try {
       // Send to actual queue
       await rabbitmq.publish(event.eventType, event.payload);
-      
+
       // Only mark as published after successful publish
       await db.outboxEvent.update({
         where: { id: event.id },
-        data: { published: true }
+        data: { published: true },
       });
     } catch (error) {
       // Don't mark as published
       // Will retry on next cycle
-      logger.error({ eventId: event.id }, 'Failed to publish');
+      logger.error({ eventId: event.id }, "Failed to publish");
     }
   }
 }

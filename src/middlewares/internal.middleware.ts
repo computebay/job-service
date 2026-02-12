@@ -5,7 +5,7 @@ const INTERNAL_TOKEN = process.env.INTERNAL_TOKEN || "internal-secret";
 
 export async function internalMiddleware(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) {
   try {
     const token = request.headers["x-internal-token"] as string;
@@ -24,7 +24,7 @@ export async function internalMiddleware(
         message: "Invalid internal token",
       });
     }
-  } catch (error : any) {
+  } catch (error: any) {
     logger.error("Internal middleware error:", error);
     return reply.status(500).send({
       error: "INTERNAL_ERROR",

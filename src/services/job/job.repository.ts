@@ -14,7 +14,7 @@ export class JobRepository {
       aggregateType: string;
       eventType: string;
       payload: Record<string, any>;
-    }>
+    }>,
   ): Promise<Job> {
     return db.$transaction(async (tx) => {
       const job = await tx.job.create({
@@ -65,7 +65,7 @@ export class JobRepository {
     userId: string,
     orgId: string,
     limit: number = 50,
-    offset: number = 0
+    offset: number = 0,
   ): Promise<{ jobs: Job[]; total: number }> {
     const [jobs, total] = await Promise.all([
       db.job.findMany({
@@ -104,7 +104,7 @@ export class JobRepository {
       aggregateType: string;
       eventType: string;
       payload: Record<string, any>;
-    }>
+    }>,
   ): Promise<Job> {
     return db.$transaction(async (tx) => {
       const job = await tx.job.update({
@@ -141,7 +141,7 @@ export class JobRepository {
   async createJobAttempt(
     jobId: string,
     attemptNo: number,
-    reason?: string
+    reason?: string,
   ): Promise<void> {
     await db.jobAttempt.create({
       data: {
@@ -157,7 +157,7 @@ export class JobRepository {
    */
   async getIdempotencyKey(
     key: string,
-    userId: string
+    userId: string,
   ): Promise<{ jobId: string } | null> {
     return db.idempotencyKey.findUnique({
       where: {
@@ -178,7 +178,7 @@ export class JobRepository {
   async createIdempotencyKey(
     key: string,
     userId: string,
-    jobId: string
+    jobId: string,
   ): Promise<void> {
     await db.idempotencyKey.create({
       data: {

@@ -1,5 +1,9 @@
 import { JobRepository } from "./job.repository";
-import { validateStateTransition, getEventType, InvalidStateTransitionError } from "./job.state";
+import {
+  validateStateTransition,
+  getEventType,
+  InvalidStateTransitionError,
+} from "./job.state";
 import { CreateJobInput } from "../../types/job.types";
 import { JobStatus } from "@prisma/client";
 import { logger } from "../../libs/logger";
@@ -19,47 +23,46 @@ export class JobService {
     input: CreateJobInput,
     userId: string,
     orgId: string,
-    idempotencyKey?: string
+    idempotencyKey?: string,
   ) {
     // Check idempotency key if provided
     if (idempotencyKey) {
-      const existing = await this.repository.getIdempotencyKey(idempotencyKey, userId);
+      const existing = await this.repository.getIdempotencyKey(
+        idempotencyKey,
+        userId,
+      );
       if (existing) {
         logger.info(
           { jobId: existing.jobId, idempotencyKey },
-          "Idempotent job creation - returning existing job"
+          "Idempotent job creation - returning existing job",
         );
         return this.repository.getJobById(existing.jobId);
       }
     }
 
-    logger.info(
-      { userId, orgId, jobType: input.jobType },
-      "Creating new job"
-    );
+    logger.info({ userId, orgId, jobType: input.jobType }, "Creating new job");
 
     // Create job with outbox event in single transaction
-    const job = await this.repository.createJob(
-      input,
-      userId,
-      orgId,
-      [
-        {
-          aggregateType: "job",
-          eventType: "JOB_CREATED",
-          payload: {
-            jobId: undefined, // Will be set to job.id by createJob
-            jobType: input.jobType,
-            runtime: input.runtime,
-            priority: input.priority || 0,
-          },
+    const job = await this.repository.createJob(input, userId, orgId, [
+      {
+        aggregateType: "job",
+        eventType: "JOB_CREATED",
+        payload: {
+          jobId: undefined, // Will be set to job.id by createJob
+          jobType: input.jobType,
+          runtime: input.runtime,
+          priority: input.priority || 0,
         },
-      ]
-    );
+      },
+    ]);
 
     // Store idempotency key if provided
     if (idempotencyKey) {
-      await this.repository.createIdempotencyKey(idempotencyKey, userId, job.id);
+      await this.repository.createIdempotencyKey(
+        idempotencyKey,
+        userId,
+        job.id,
+      );
       logger.debug({ idempotencyKey, jobId: job.id }, "Stored idempotency key");
     }
 
@@ -76,7 +79,12 @@ export class JobService {
   /**
    * Get jobs for a user
    */
-  async getJobs(userId: string, orgId: string, limit?: number, offset?: number) {
+  async getJobs(
+    userId: string,
+    orgId: string,
+    limit?: number,
+    offset?: number,
+  ) {
     return this.repository.getJobsByUserId(userId, orgId, limit, offset);
   }
 
@@ -89,7 +97,7 @@ export class JobService {
     updates?: {
       startedAt?: Date;
       completedAt?: Date;
-    }
+    },
   ) {
     const job = await this.repository.getJobById(jobId);
     if (!job) {
@@ -101,10 +109,7 @@ export class JobService {
       validateStateTransition(job.status, newStatus);
     } catch (error) {
       if (error instanceof InvalidStateTransitionError) {
-        logger.warn(
-          { jobId, from: job.status, to: newStatus },
-          error.message
-        );
+        logger.warn({ jobId, from: job.status, to: newStatus }, error.message);
         throw error;
       }
       throw error;
@@ -112,7 +117,7 @@ export class JobService {
 
     logger.info(
       { jobId, from: job.status, to: newStatus },
-      "Updating job status"
+      "Updating job status",
     );
 
     // Generate outbox event
@@ -133,7 +138,7 @@ export class JobService {
             timestamp: new Date().toISOString(),
           },
         },
-      ]
+      ],
     );
 
     return updatedJob;
@@ -180,7 +185,7 @@ export class JobService {
           eventType: event.eventType,
           payload: event.payload,
         },
-        "Publishing event to queue"
+        "Publishing event to queue",
       );
 
       // Mark as published

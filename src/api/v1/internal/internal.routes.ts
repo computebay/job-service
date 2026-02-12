@@ -15,7 +15,7 @@ export class InternalJobController {
    */
   static async updateJobState(
     request: FastifyRequest,
-    reply: FastifyReply
+    reply: FastifyReply,
   ): Promise<void> {
     try {
       const { id } = request.params as { id: string };
@@ -25,7 +25,7 @@ export class InternalJobController {
 
       logger.info(
         { jobId: id, newStatus: body.status },
-        "Internal: updating job state"
+        "Internal: updating job state",
       );
 
       const updates: any = {};
@@ -36,7 +36,11 @@ export class InternalJobController {
         updates.completedAt = new Date(body.completedAt);
       }
 
-      const job = await jobService.updateJobStatus(id, body.status as any, updates);
+      const job = await jobService.updateJobStatus(
+        id,
+        body.status as any,
+        updates,
+      );
 
       reply.send({
         id: job.id,
@@ -66,7 +70,10 @@ export class InternalJobController {
         return;
       }
 
-      if (error instanceof Error && error.name === "InvalidStateTransitionError") {
+      if (
+        error instanceof Error &&
+        error.name === "InvalidStateTransitionError"
+      ) {
         reply.status(409).send({
           error: "INVALID_STATE_TRANSITION",
           message: error.message,
@@ -99,7 +106,7 @@ export async function internalRoutes(app: FastifyInstance) {
     // Update job state
     fastify.post<{ Params: { id: string }; Body: any }>(
       "/api/v1/internal/jobs/:id/state",
-      InternalJobController.updateJobState
+      InternalJobController.updateJobState,
     );
   });
 }

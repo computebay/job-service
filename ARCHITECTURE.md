@@ -63,6 +63,7 @@ QUEUED ──► RUNNING ──► COMPLETED
 ```
 
 **State Details:**
+
 - **QUEUED**: Job created, waiting to be scheduled
 - **RUNNING**: Scheduler assigned to a worker, worker is executing
 - **COMPLETED**: Execution finished successfully
@@ -85,7 +86,7 @@ The Outbox Pattern ensures reliable event publishing even if the message queue i
     ▼               ▼               ▼
 INSERT Job    INSERT Outbox  COMMIT TRANSACTION
               Event
-    
+
 3. After transaction commits, events are available in DB
                     │
                     ▼
@@ -95,7 +96,7 @@ INSERT Job    INSERT Outbox  COMMIT TRANSACTION
 5. For each unpublished event:
    - Log it (stub implementation)
    - Mark as published in DB
-   
+
 6. If poller crashes before marking as published:
    - Next poll cycle will retry the same events
    - No events are lost (idempotent)
@@ -104,6 +105,7 @@ INSERT Job    INSERT Outbox  COMMIT TRANSACTION
 **Why Outbox?**
 
 Without Outbox Pattern, this could happen:
+
 ```
 1. Job inserted into DB ✓
 2. Send to message queue ✓
@@ -123,7 +125,7 @@ Every `POST /api/v1/jobs` requires an `Idempotency-Key` header.
 ```
 First Request:
   Header: Idempotency-Key: create-job-123
-  
+
   1. Check if key exists for this user
   2. Not found → Create job
   3. Store (key, user_id, job_id) in DB
@@ -131,7 +133,7 @@ First Request:
 
 Retry (same header):
   Header: Idempotency-Key: create-job-123
-  
+
   1. Check if key exists for this user
   2. Found → Fetch existing job
   3. Return 200 with existing job (no duplicate created!)
@@ -199,7 +201,7 @@ Invalid Transition Example:
      - Insert IdempotencyKey
      - Insert OutboxEvent (eventType: JOB_CREATED)
    COMMIT TRANSACTION
-   
+
    Return created job
 
 6. CONTROLLER: Format response
@@ -254,7 +256,7 @@ Invalid Transition Example:
      - Update Job (status: RUNNING, startedAt: ...)
      - Insert OutboxEvent (eventType: JOB_STARTED)
    COMMIT TRANSACTION
-   
+
    Return updated job
 
 6. BACKGROUND: Outbox Poller (next 5-second cycle)
@@ -267,11 +269,11 @@ Invalid Transition Example:
 
 The 5-second interval is a trade-off:
 
-| Interval | Pro | Con |
-|----------|-----|-----|
-| **1 sec** | Events published quickly | High DB load, high CPU |
-| **5 sec** | ✓ Reasonable latency, ✓ Low overhead | Events delayed up to 5s |
-| **30 sec** | Very low overhead | Events delayed, poor UX |
+| Interval   | Pro                                  | Con                     |
+| ---------- | ------------------------------------ | ----------------------- |
+| **1 sec**  | Events published quickly             | High DB load, high CPU  |
+| **5 sec**  | ✓ Reasonable latency, ✓ Low overhead | Events delayed up to 5s |
+| **30 sec** | Very low overhead                    | Events delayed, poor UX |
 
 **Why 5 seconds for Job Service?**
 
@@ -298,14 +300,14 @@ Key Constraints:
 
 ## Error Handling
 
-| Status | Scenario | Action |
-|--------|----------|--------|
-| **400** | Missing Idempotency-Key | Request rejected |
-| **401** | Invalid/expired JWT | Request rejected |
-| **403** | Wrong internal token | Request rejected |
-| **404** | Job not found | Not found error |
-| **409** | Invalid state transition | Conflict error |
-| **500** | DB error, server error | Retry with exponential backoff |
+| Status  | Scenario                 | Action                         |
+| ------- | ------------------------ | ------------------------------ |
+| **400** | Missing Idempotency-Key  | Request rejected               |
+| **401** | Invalid/expired JWT      | Request rejected               |
+| **403** | Wrong internal token     | Request rejected               |
+| **404** | Job not found            | Not found error                |
+| **409** | Invalid state transition | Conflict error                 |
+| **500** | DB error, server error   | Retry with exponential backoff |
 
 ## Configuration & Environment
 

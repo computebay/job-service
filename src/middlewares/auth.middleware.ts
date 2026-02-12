@@ -6,7 +6,7 @@ import { Jwt, JwtPayload } from "jsonwebtoken";
 
 export async function authMiddleware(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) {
   try {
     const authHeader = request.headers.authorization;
@@ -27,11 +27,9 @@ export async function authMiddleware(
       });
     }
 
- 
-
     try {
-      const decoded = verifyToken(token) as JwtPayload
-      
+      const decoded = verifyToken(token) as JwtPayload;
+
       // Validate required fields
       if (!decoded.sub || !decoded.orgId) {
         logger.warn("Token missing required fields");

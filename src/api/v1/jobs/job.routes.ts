@@ -8,15 +8,12 @@ export async function jobRoutes(app: FastifyInstance) {
     fastify.addHook("preHandler", authMiddleware);
 
     // Create job
-    fastify.post<{ Body: any }>(
-      "/api/v1/jobs",
-      JobController.createJob
-    );
+    fastify.post<{ Body: any }>("/api/v1/jobs", JobController.createJob);
 
     // Get job
     fastify.get<{ Params: { id: string } }>(
       "/api/v1/jobs/:id",
-      JobController.getJob
+      JobController.getJob,
     );
 
     // List jobs
@@ -25,7 +22,7 @@ export async function jobRoutes(app: FastifyInstance) {
     // Cancel job
     fastify.post<{ Params: { id: string }; Body: any }>(
       "/api/v1/jobs/:id/cancel",
-      JobController.cancelJob
+      JobController.cancelJob,
     );
   });
 }

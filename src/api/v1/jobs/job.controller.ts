@@ -16,7 +16,7 @@ export class JobController {
    */
   static async createJob(
     request: FastifyRequest,
-    reply: FastifyReply
+    reply: FastifyReply,
   ): Promise<void> {
     try {
       const authReq = request as AuthenticatedRequest;
@@ -37,10 +37,15 @@ export class JobController {
 
       logger.info(
         { userId, orgId, idempotencyKey, jobType: body.jobType },
-        "Creating job"
+        "Creating job",
       );
 
-      const job = await jobService.createJob(body, userId, orgId, idempotencyKey);
+      const job = await jobService.createJob(
+        body,
+        userId,
+        orgId,
+        idempotencyKey,
+      );
 
       if (!job) {
         reply.status(500).send({
@@ -92,7 +97,7 @@ export class JobController {
    */
   static async getJob(
     request: FastifyRequest,
-    reply: FastifyReply
+    reply: FastifyReply,
   ): Promise<void> {
     try {
       const { id } = request.params as { id: string };
@@ -151,24 +156,21 @@ export class JobController {
    */
   static async listJobs(
     request: FastifyRequest,
-    reply: FastifyReply
+    reply: FastifyReply,
   ): Promise<void> {
     try {
       const authReq = request as AuthenticatedRequest;
       const userId = authReq.user.sub; // Use 'sub' from JWT
       const orgId = authReq.user.orgId;
 
-      const limit = Math.min(
-        parseInt((request.query as any).limit) || 50,
-        100
-      );
+      const limit = Math.min(parseInt((request.query as any).limit) || 50, 100);
       const offset = parseInt((request.query as any).offset) || 0;
 
       const { jobs, total } = await jobService.getJobs(
         userId,
         orgId,
         limit,
-        offset
+        offset,
       );
 
       reply.send({
@@ -211,7 +213,7 @@ export class JobController {
    */
   static async cancelJob(
     request: FastifyRequest,
-    reply: FastifyReply
+    reply: FastifyReply,
   ): Promise<void> {
     try {
       const { id } = request.params as { id: string };
@@ -271,7 +273,10 @@ export class JobController {
         return;
       }
 
-      if (error instanceof Error && error.name === "InvalidStateTransitionError") {
+      if (
+        error instanceof Error &&
+        error.name === "InvalidStateTransitionError"
+      ) {
         reply.status(409).send({
           error: "INVALID_STATE_TRANSITION",
           message: error.message,
