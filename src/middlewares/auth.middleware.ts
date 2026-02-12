@@ -1,6 +1,8 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { logger } from "../libs/logger";
 import { AuthPayload, AuthenticatedRequest } from "../types/auth";
+import { verifyToken } from "@/utils/token";
+import { Jwt, JwtPayload } from "jsonwebtoken";
 
 export async function authMiddleware(
   request: FastifyRequest,
@@ -16,28 +18,20 @@ export async function authMiddleware(
       });
     }
 
-    const token = authHeader.startsWith("Bearer ")
-      ? authHeader.slice(7)
-      : authHeader;
+    const token = authHeader.split(" ")[1];
 
-    // Verify and decode JWT
-    // In production, use a proper JWT library like jsonwebtoken
-    // For now, we'll accept any token and extract the payload
-    // The token format from Auth Service is: {userId, orgId, role, iat, exp}
+    if (!token) {
+      return reply.status(401).send({
+        error: "UNAUTHORIZED",
+        message: "Missing auth token",
+      });
+    }
+
+ 
 
     try {
-      const decoded = JSON.parse(
-        Buffer.from(token.split(".")[1], "base64").toString()
-      ) as AuthPayload;
-
-      // Check expiration
-      if (decoded.exp && decoded.exp * 1000 < Date.now()) {
-        return reply.status(401).send({
-          error: "TOKEN_EXPIRED",
-          message: "Token has expired",
-        });
-      }
-
+      const decoded = verifyToken(token) as JwtPayload
+      
       // Validate required fields
       if (!decoded.sub || !decoded.orgId) {
         logger.warn("Token missing required fields");
@@ -47,12 +41,12 @@ export async function authMiddleware(
         });
       }
 
-      (request as AuthenticatedRequest).user = decoded;
+      (request as JwtPayload).user = decoded;
     } catch (error) {
       logger.warn("Failed to decode token");
       return reply.status(401).send({
         error: "INVALID_TOKEN",
-        message: "Invalid token format",
+        message: `Invalid token format: ${error}`,
       });
     }
   } catch (error: any) {
