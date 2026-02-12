@@ -8,7 +8,19 @@ import { jobService } from "./services/job/job.service";
 
 async function bootstrap() {
   const app = Fastify({
-    logger: logger,
+    logger: {
+      level: process.env.LOG_LEVEL || "info",
+      ...(process.env.NODE_ENV !== "production" && {
+        transport: {
+          target: "pino-pretty",
+          options: {
+            colorize: true,
+            translateTime: "SYS:standard",
+            ignore: "pid,hostname",
+          },
+        },
+      }),
+    },
   });
 
   // Register routes
