@@ -5,6 +5,7 @@ import { jobRoutes } from "./api/v1/jobs/job.routes";
 import { internalRoutes } from "./api/v1/internal/internal.routes";
 import { healthRoutes } from "./api/v1/health/health.routes";
 import { jobService } from "./services/job/job.service";
+import { connectRabbitMQ } from "./config/rabbitmq";
 
 async function bootstrap() {
   const app = Fastify({
@@ -23,11 +24,14 @@ async function bootstrap() {
     },
   });
 
+
   // Register routes
   await healthRoutes(app);
   await jobRoutes(app);
   await internalRoutes(app);
-
+  
+  // Initialize rabbit mq connection
+  await connectRabbitMQ();
   // Set up periodic outbox event publishing (every 5 seconds)
   setInterval(async () => {
     try {
