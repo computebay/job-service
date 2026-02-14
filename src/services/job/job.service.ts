@@ -4,11 +4,11 @@ import {
   getEventType,
   InvalidStateTransitionError,
 } from "./job.state";
-import { CreateJobInput } from "../../types/job.types";
+import { CreateJobInput } from "@/types/job.types";
 import { JobStatus } from "@prisma/client";
-import { logger } from "../../libs/logger";
+import { logger } from "@/libs/logger";
 import { v4 as uuid } from "uuid";
-
+import { getChannel,getExchangeName } from "@/config/rabbitmq";
 export class JobService {
   private repository: JobRepository;
 
