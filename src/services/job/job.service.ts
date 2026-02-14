@@ -176,20 +176,26 @@ export class JobService {
     logger.info({ count: events.length }, "Publishing outbox events");
 
     for (const event of events) {
-      // In production, this would push to a message queue
-      // For now, we just log the event
-      logger.info(
-        {
-          eventId: event.id,
-          aggregateId: event.aggregateId,
-          eventType: event.eventType,
-          payload: event.payload,
-        },
-        "Publishing event to queue",
-      );
+      //Publish events to rabbit mq
+      const channel = getChannel();
+      const exchange = getExchangeName();
 
-      // Mark as published
-      await this.repository.markEventAsPublished(event.id);
+      const routingKey = `job.${event.eventType.toLocaleLowerCase()}`;
+
+      const message = Buffer.from(JSON.stringify(event.payload))
+
+      const published = channel.publish(exchange,routingKey,message,{
+        persistent:true,
+        contentType:"application/json",
+      });
+
+      if(!published){
+        logger.error("Failed to publish message");
+      }
+
+      await this.repository.markEventAsPublished(event.id)
+
+
     }
 
     logger.info({ count: events.length }, "Finished publishing events");
