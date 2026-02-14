@@ -1,8 +1,11 @@
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
+
 datasource db {
   provider = "postgresql"
+  schemas  = ["jobs"]
   url      = env("DATABASE_URL")
 }
 
@@ -16,6 +19,8 @@ enum JobStatus {
   COMPLETED
   FAILED
   CANCELLED
+
+  @@schema("jobs")
 }
 
 //////////////////////
@@ -56,6 +61,7 @@ model Job {
   @@index([status])
   @@index([createdAt])
   @@map("jobs")
+  @@schema("jobs")
 }
 
 //////////////////////
@@ -74,6 +80,7 @@ model JobAttempt {
   @@unique([jobId, attemptNo])
   @@index([jobId])
   @@map("job_attempts")
+  @@schema("jobs")
 }
 
 //////////////////////
@@ -91,6 +98,7 @@ model IdempotencyKey {
   @@id([key, ownerUserId])
   @@index([jobId])
   @@map("idempotency_keys")
+  @@schema("jobs")
 }
 
 //////////////////////
@@ -112,4 +120,5 @@ model OutboxEvent {
   @@index([aggregateType, aggregateId])
   @@index([createdAt])
   @@map("outbox_events")
+  @@schema("jobs")
 }
