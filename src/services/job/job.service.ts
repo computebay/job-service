@@ -164,7 +164,7 @@ export class JobService {
   }
 
   /**
-   * Publish outbox events (stub - logs only)
+   * Publish outbox events 
    */
   async publishOutboxEvents() {
     const events = await this.repository.getUnpublishedEvents(100);
