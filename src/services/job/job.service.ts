@@ -49,8 +49,13 @@ export class JobService {
         eventType: "JOB_CREATED",
         payload: {
           jobId: undefined, // Will be set to job.id by createJob
+          orgId:input.orgId,
           jobType: input.jobType,
           runtime: input.runtime,
+          entrypoint: input.entrypoint,
+          resources: input.resources,
+          inputArtifacts: input.inputArtifacts,
+          retryPolicy: input.retryPolicy || null,
           priority: input.priority || 0,
         },
       },

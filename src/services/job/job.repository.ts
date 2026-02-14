@@ -32,8 +32,11 @@ export class JobRepository {
         },
       });
 
+
       // Insert outbox events in same transaction
       for (const event of outboxEvents) {
+        event.payload.jobId = job.id
+        event.payload.createdAt = job.createdAt
         await tx.outboxEvent.create({
           data: {
             aggregateType: event.aggregateType,

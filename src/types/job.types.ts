@@ -1,6 +1,7 @@
 import { JobStatus } from "@prisma/client";
 
 export interface CreateJobInput {
+  // id:string;
   jobType: string;
   runtime: string;
   entrypoint: string[];
@@ -8,6 +9,8 @@ export interface CreateJobInput {
   inputArtifacts: Record<string, any>;
   retryPolicy?: Record<string, any> | null;
   priority?: number;
+  // createdAt: string;
+  orgId:string;
 }
 
 export interface UpdateJobStateInput {

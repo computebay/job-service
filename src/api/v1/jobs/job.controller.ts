@@ -48,6 +48,7 @@ export class JobController {
       );
 
       if (!job) {
+        
         reply.status(500).send({
           error: "INTERNAL_ERROR",
           message: "Failed to create job",
@@ -83,7 +84,12 @@ export class JobController {
         return;
       }
 
-      logger.error({ error }, "Error creating job");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      logger.error(
+        { message: errorMessage, stack: errorStack, error: String(error) },
+        "Error creating job",
+      );
       reply.status(500).send({
         error: "INTERNAL_ERROR",
         message: "Failed to create job",
