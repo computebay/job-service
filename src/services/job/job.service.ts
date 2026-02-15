@@ -46,7 +46,7 @@ export class JobService {
     const job = await this.repository.createJob(input, userId, orgId, [
       {
         aggregateType: "job",
-        eventType: "JOB_CREATED",
+        eventType: "CREATED",
         payload: {
           jobId: undefined, // Will be set to job.id by createJob
           orgId:input.orgId,

@@ -38,12 +38,12 @@ export function getEventType(
   toStatus: JobStatus,
 ): string {
   const eventMap: Record<string, string> = {
-    [`${JobStatus.QUEUED}→${JobStatus.RUNNING}`]: "JOB_STARTED",
-    [`${JobStatus.RUNNING}→${JobStatus.COMPLETED}`]: "JOB_COMPLETED",
-    [`${JobStatus.RUNNING}→${JobStatus.FAILED}`]: "JOB_FAILED",
-    [`${JobStatus.QUEUED}→${JobStatus.CANCELLED}`]: "JOB_CANCELLED",
-    [`${JobStatus.RUNNING}→${JobStatus.CANCELLED}`]: "JOB_CANCELLED",
+    [`${JobStatus.QUEUED}→${JobStatus.RUNNING}`]: "STARTED",
+    [`${JobStatus.RUNNING}→${JobStatus.COMPLETED}`]: "COMPLETED",
+    [`${JobStatus.RUNNING}→${JobStatus.FAILED}`]: "FAILED",
+    [`${JobStatus.QUEUED}→${JobStatus.CANCELLED}`]: "CANCELLED",
+    [`${JobStatus.RUNNING}→${JobStatus.CANCELLED}`]: "CANCELLED",
   };
 
-  return eventMap[`${fromStatus}→${toStatus}`] || "JOB_STATE_CHANGED";
+  return eventMap[`${fromStatus}→${toStatus}`] || "STATE_CHANGED";
 }
