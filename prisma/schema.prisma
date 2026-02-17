@@ -48,7 +48,7 @@ model Job {
   // Artifacts
   inputArtifacts  Json       // { code: "s3://..." }
   outputArtifacts Json?
-
+  assignedNodeId  String?
   error           String?
 
   // Timestamps
