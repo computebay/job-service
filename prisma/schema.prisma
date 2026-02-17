@@ -50,6 +50,7 @@ model Job {
 
   // Timestamps
   createdAt       DateTime   @default(now())
+  scheduledAt     DateTime?
   startedAt       DateTime?
   completedAt     DateTime?
 
