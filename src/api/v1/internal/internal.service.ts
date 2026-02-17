@@ -50,7 +50,9 @@ export const UpdateJobState = async () => {
                                     status: JobStatus.SCHEDULED,
                                     scheduledAt: data.scheduledAt 
                                         ? new Date(data.scheduledAt as number) 
-                                        : new Date()
+                                        : new Date(),
+                                    assignedNodeId : data.nodeId as any
+                                    
                                 }
                             });
                             logger.info({ 
