@@ -1,6 +1,6 @@
 import { getChannel, connectRabbitMQ, getExchangeName } from '@/config/rabbitmq';
 import prisma from '@/config/db';
-import { $Enums } from '@/generated/prisma/client';
+import { JobStatus } from '@prisma/client';
 import { logger } from '@/libs/logger';
 
 const QUEUE_NAME = "job-service.events";
@@ -31,34 +31,56 @@ export const UpdateJobState = async () => {
 
                 logger.info({ routingKey, data }, 'Received job event');
 
-                switch (routingKey) {
-                    case 'job.created':
+                // Extract the event type from routing key (job.scheduled.nodeId -> scheduled)
+                const eventType = routingKey.split('.')[1];
+
+                switch (eventType) {
+                    case 'created':
                         // Handle job creation event
                         logger.info({ jobId: data.jobId }, 'Job created event received');
                         // Add your logic here
                         break;
 
-                    case 'job.scheduled':
+                    case 'scheduled':
                         // Update job state to scheduled
                         if (typeof data.jobId === 'string') {
                             await prisma.job.update({
                                 where: { id: data.jobId },
                                 data: { 
-                                    status: $Enums.JobStatus.SCHEDULED,
-                                    scheduledAt: new Date()
+                                    status: JobStatus.SCHEDULED,
+                                    scheduledAt: data.scheduledAt 
+                                        ? new Date(data.scheduledAt as number) 
+                                        : new Date()
                                 }
                             });
-                            logger.info({ jobId: data.jobId }, 'Job marked as scheduled');
+                            logger.info({ 
+                                jobId: data.jobId, 
+                                nodeId: data.nodeId 
+                            }, 'Job marked as scheduled');
                         }
                         break;
 
-                    case 'job.completed':
+                    case 'running':
+                        // Handle job running state
+                        if (typeof data.jobId === 'string') {
+                            await prisma.job.update({
+                                where: { id: data.jobId },
+                                data: { 
+                                    status: JobStatus.RUNNING,
+                                    startedAt: new Date()
+                                }
+                            });
+                            logger.info({ jobId: data.jobId }, 'Job started running');
+                        }
+                        break;
+
+                    case 'completed':
                         // Handle job completion
                         if (typeof data.jobId === 'string') {
                             await prisma.job.update({
                                 where: { id: data.jobId },
                                 data: { 
-                                    status: $Enums.JobStatus.COMPLETED,
+                                    status: JobStatus.COMPLETED,
                                     completedAt: new Date()
                                 }
                             });
@@ -66,21 +88,37 @@ export const UpdateJobState = async () => {
                         }
                         break;
 
-                    case 'job.failed':
+                    case 'failed':
                         // Handle job failure
                         if (typeof data.jobId === 'string') {
                             await prisma.job.update({
                                 where: { id: data.jobId },
                                 data: { 
-                                    status: $Enums.JobStatus.FAILED
+                                    status: JobStatus.FAILED,
+                                    error: data.error as string || 'Unknown error',
+                                    failedAt: new Date()
                                 }
                             });
                             logger.error({ jobId: data.jobId, error: data.error }, 'Job failed');
                         }
                         break;
 
+                    case 'cancelled':
+                        // Handle job cancellation
+                        if (typeof data.jobId === 'string') {
+                            await prisma.job.update({
+                                where: { id: data.jobId },
+                                data: { 
+                                    status: JobStatus.CANCELLED,
+                                    cancelledAt: new Date()
+                                }
+                            });
+                            logger.info({ jobId: data.jobId }, 'Job cancelled');
+                        }
+                        break;
+
                     default:
-                        logger.warn({ routingKey }, 'Unknown routing key');
+                        logger.warn({ routingKey, eventType }, 'Unknown event type');
                 }
 
                 // Acknowledge message after successful processing
