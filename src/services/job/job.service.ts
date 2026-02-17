@@ -8,7 +8,7 @@ import { CreateJobInput } from "@/types/job.types";
 import { JobStatus } from "@prisma/client";
 import { logger } from "@/libs/logger";
 import { v4 as uuid } from "uuid";
-import { getChannel,getExchangeName } from "@/config/rabbitmq";
+import { getChannel, getExchangeName } from "@/config/rabbitmq";
 export class JobService {
   private repository: JobRepository;
 
@@ -49,7 +49,7 @@ export class JobService {
         eventType: "CREATED",
         payload: {
           jobId: undefined, // Will be set to job.id by createJob
-          orgId:input.orgId,
+          orgId: input.orgId,
           jobType: input.jobType,
           runtime: input.runtime,
           entrypoint: input.entrypoint,
@@ -169,7 +169,7 @@ export class JobService {
   }
 
   /**
-   * Publish outbox events 
+   * Publish outbox events
    */
   async publishOutboxEvents() {
     const events = await this.repository.getUnpublishedEvents(100);
@@ -187,20 +187,18 @@ export class JobService {
 
       const routingKey = `job.${event.eventType.toLocaleLowerCase()}`;
 
-      const message = Buffer.from(JSON.stringify(event.payload))
+      const message = Buffer.from(JSON.stringify(event.payload));
 
-      const published = channel.publish(exchange,routingKey,message,{
-        persistent:true,
-        contentType:"application/json",
+      const published = channel.publish(exchange, routingKey, message, {
+        persistent: true,
+        contentType: "application/json",
       });
 
-      if(!published){
+      if (!published) {
         logger.error("Failed to publish message");
       }
 
-      await this.repository.markEventAsPublished(event.id)
-
-
+      await this.repository.markEventAsPublished(event.id);
     }
 
     logger.info({ count: events.length }, "Finished publishing events");

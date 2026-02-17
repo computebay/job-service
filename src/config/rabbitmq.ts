@@ -16,7 +16,7 @@ export async function connectRabbitMQ() {
   }
 
   connection = await amqp.connect(url);
-  
+
   channel = await connection.createChannel();
 
   await channel.assertExchange(EXCHANGE_NAME, EXCHANGE_TYPE, {

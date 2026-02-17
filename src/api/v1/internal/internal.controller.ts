@@ -8,7 +8,6 @@ import {
 import { logger } from "../../../libs/logger";
 import { z } from "zod";
 
-
 export class InternalJobController {
   /**
    * Update job state (internal only)

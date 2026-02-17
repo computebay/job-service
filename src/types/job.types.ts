@@ -10,7 +10,7 @@ export interface CreateJobInput {
   retryPolicy?: Record<string, any> | null;
   priority?: number;
   // createdAt: string;
-  orgId:string;
+  orgId: string;
 }
 
 export interface UpdateJobStateInput {

@@ -8,9 +8,7 @@ if (process.env.NODE_ENV === "production") {
 } else {
   const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
   if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient({
-     
-    });
+    globalForPrisma.prisma = new PrismaClient({});
   }
   prisma = globalForPrisma.prisma;
 }
