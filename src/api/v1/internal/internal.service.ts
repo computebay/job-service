@@ -27,6 +27,10 @@ export const UpdateJobState = async () => {
     await channel.assertExchange(SCHEDULER_EXCHANGE, "topic", { durable: true });
     await channel.bindQueue(QUEUE_NAME, SCHEDULER_EXCHANGE, "node.registered");
 
+    // Bind to shared node events exchange where workers publish job updates
+    await channel.assertExchange("node.events", "topic", { durable: true });
+    await channel.bindQueue(QUEUE_NAME, "node.events", "node.#");
+    
     logger.info(`Started consuming from queue: ${QUEUE_NAME}`);
 
     channel.consume(QUEUE_NAME, async (msg) => {
@@ -82,6 +86,17 @@ export const UpdateJobState = async () => {
               },
             });
             logger.info({ jobId }, "Job marked as completed");
+            break;
+
+          case "job.started":
+            await prisma.job.update({
+              where: { id: jobId },
+              data: {
+                status: JobStatus.RUNNING,
+                startedAt: new Date(),
+              },
+            });
+            logger.info({ jobId }, "Job started running");
             break;
 
           case "job.failed":
