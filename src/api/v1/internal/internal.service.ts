@@ -1,32 +1,31 @@
-import { getChannel, connectRabbitMQ } from "@/config/rabbitmq";
+import { connectRabbitMQ, getChannel } from "@/config/rabbitmq";
 import prisma from "@/config/db";
 import { JobStatus } from "@prisma/client";
 import { logger } from "@/libs/logger";
 
 const QUEUE_NAME = "job-service.events";
+const SCHEDULER_EXCHANGE = "compute-bay.jobs";
 
-// Call this when a new node comes online so we start receiving its events
-export const bindNodeExchange = async (nodeId: string) => {
+const bindNodeExchange = async (eventsExchange: string, nodeId: string) => {
   const channel = getChannel();
-  const exchangeName = `node.${nodeId}.events`;
 
-  await channel.assertExchange(exchangeName, "topic", { durable: true });
-  await channel.bindQueue(QUEUE_NAME, exchangeName, "#");
+  await channel.assertExchange(eventsExchange, "topic", { durable: true });
+  await channel.bindQueue(QUEUE_NAME, eventsExchange, "#");
 
-  logger.info({ nodeId, exchangeName }, "Bound queue to node exchange");
+  logger.info({ nodeId, eventsExchange }, "Bound queue to node events exchange");
 };
 
-export const UpdateJobState = async (nodeIds: string[] = []) => {
+export const UpdateJobState = async () => {
   try {
     await connectRabbitMQ();
     const channel = getChannel();
 
+    // Single queue that fans in from all exchanges
     await channel.assertQueue(QUEUE_NAME, { durable: true });
 
-    // Bind all known node exchanges at startup
-    for (const nodeId of nodeIds) {
-      await bindNodeExchange(nodeId);
-    }
+    // Bind to scheduler exchange to receive node.registered events
+    await channel.assertExchange(SCHEDULER_EXCHANGE, "topic", { durable: true });
+    await channel.bindQueue(QUEUE_NAME, SCHEDULER_EXCHANGE, "node.registered");
 
     logger.info(`Started consuming from queue: ${QUEUE_NAME}`);
 
@@ -34,13 +33,27 @@ export const UpdateJobState = async (nodeIds: string[] = []) => {
       if (!msg) return;
 
       try {
+        const routingKey = msg.fields.routingKey;
         const data = JSON.parse(msg.content.toString()) as Record<string, unknown>;
 
+        logger.info({ routingKey, data }, "Received event");
+
+        // Handle node registration — bind to the new node's events exchange
+        if (routingKey === "node.registered") {
+          const { nodeId, eventsExchange } = data as {
+            nodeId: string;
+            eventsExchange: string;
+          };
+
+          await bindNodeExchange(eventsExchange, nodeId);
+          channel.ack(msg);
+          return;
+        }
+
+        // All other messages are job state updates from node.{nodeId}.events exchanges
         const eventType = data.event as string;
         const jobId = data.jobId as string;
         const nodeId = data.nodeId as string;
-
-        logger.info({ eventType, jobId, nodeId }, "Received node event");
 
         if (!jobId || typeof jobId !== "string") {
           logger.warn({ data }, "Missing jobId in event payload");
@@ -96,7 +109,7 @@ export const UpdateJobState = async (nodeIds: string[] = []) => {
             break;
 
           default:
-            logger.warn({ eventType, jobId }, "Unknown event type");
+            logger.warn({ eventType, jobId, nodeId }, "Unknown event type");
         }
 
         channel.ack(msg);
