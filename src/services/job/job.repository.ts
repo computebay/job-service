@@ -19,6 +19,7 @@ export class JobRepository {
     return db.$transaction(async (tx) => {
       const job = await tx.job.create({
         data: {
+          ...(input.id && { id: input.id }),
           ownerUserId: userId,
           orgId,
           status: JobStatus.QUEUED,

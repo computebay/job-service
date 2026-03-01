@@ -6,8 +6,11 @@ import {
   cancelJobSchema,
 } from "../../../validators/job.schema";
 import { AuthenticatedRequest } from "../../../types/auth";
+import { CreateJobInput } from "../../../types/job.types";
 import { logger } from "../../../libs/logger";
 import { z } from "zod";
+import { v4 as uuid } from "uuid";
+import { prepareAndUploadArtifact } from "../../../libs/artifact.upload";
 
 export class JobController {
   /**
@@ -40,8 +43,69 @@ export class JobController {
         "Creating job",
       );
 
+      // Idempotency: return existing job without uploading (avoids orphan artifacts on retry)
+      const existingJob = await jobService.getExistingJobForIdempotencyKey(
+        idempotencyKey,
+        userId,
+      );
+      if (existingJob) {
+        reply.status(200).send({
+          id: existingJob.id,
+          ownerUserId: existingJob.ownerUserId,
+          orgId: existingJob.orgId,
+          status: existingJob.status,
+          priority: existingJob.priority,
+          jobType: existingJob.jobType,
+          runtime: existingJob.runtime,
+          entrypoint: existingJob.entrypoint,
+          resources: existingJob.resources,
+          retryPolicy: existingJob.retryPolicy,
+          inputArtifacts: existingJob.inputArtifacts,
+          outputArtifacts: existingJob.outputArtifacts,
+          createdAt: existingJob.createdAt.toISOString(),
+          startedAt: existingJob.startedAt?.toISOString(),
+          completedAt: existingJob.completedAt?.toISOString(),
+        });
+        return;
+      }
+
+      let inputArtifacts: Record<string, unknown>;
+      let predefinedJobId: string | undefined;
+
+      if (body.code !== undefined) {
+        predefinedJobId = uuid();
+        const objectKey = await prepareAndUploadArtifact(
+          predefinedJobId,
+          { code: body.code },
+          body.entrypoint,
+        );
+        inputArtifacts = { objectKey };
+      } else if (body.project !== undefined) {
+        predefinedJobId = uuid();
+        const objectKey = await prepareAndUploadArtifact(
+          predefinedJobId,
+          { project: body.project },
+          body.entrypoint,
+        );
+        inputArtifacts = { objectKey };
+      } else {
+        inputArtifacts = body.inputArtifacts as Record<string, unknown>;
+      }
+
+      const createInput: CreateJobInput = {
+        jobType: body.jobType,
+        runtime: body.runtime,
+        entrypoint: body.entrypoint,
+        resources: body.resources,
+        inputArtifacts,
+        retryPolicy: body.retryPolicy ?? null,
+        priority: body.priority ?? 0,
+        orgId: body.orgId,
+        ...(predefinedJobId && { id: predefinedJobId }),
+      };
+
       const job = await jobService.createJob(
-        body,
+        createInput,
         userId,
         orgId,
         idempotencyKey,

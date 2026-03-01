@@ -78,6 +78,10 @@ Terminal states: COMPLETED, FAILED, CANCELLED
 
 ## Example: Create a Job
 
+You can provide job input in three ways:
+
+**1. Inline code** (zipped and uploaded to MinIO; `job.created` emits `objectKey`):
+
 ```bash
 curl -X POST http://localhost:3000/api/v1/jobs \
   -H "Authorization: Bearer <jwt_token>" \
@@ -88,9 +92,46 @@ curl -X POST http://localhost:3000/api/v1/jobs \
     "runtime": "node18",
     "entrypoint": ["node", "app.js"],
     "resources": {"cpu": 1, "memoryMB": 512},
-    "inputArtifacts": {"code": "s3://bucket/app.zip"}
+    "code": "console.log(\"Hello\");"
   }'
 ```
+
+**2. Multi-file project** (zipped and uploaded to MinIO):
+
+```bash
+curl -X POST http://localhost:3000/api/v1/jobs \
+  -H "Authorization: Bearer <jwt_token>" \
+  -H "Idempotency-Key: job-$(date +%s)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobType": "batch",
+    "runtime": "node18",
+    "entrypoint": ["node", "index.js"],
+    "resources": {"cpu": 1, "memoryMB": 512},
+    "project": {
+      "index.js": "require(\"./lib\");",
+      "lib.js": "module.exports = () => 42;"
+    }
+  }'
+```
+
+**3. Pre-computed artifact** (objectKey already in MinIO):
+
+```bash
+curl -X POST http://localhost:3000/api/v1/jobs \
+  -H "Authorization: Bearer <jwt_token>" \
+  -H "Idempotency-Key: job-$(date +%s)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobType": "batch",
+    "runtime": "node18",
+    "entrypoint": ["node", "app.js"],
+    "resources": {"cpu": 1, "memoryMB": 512},
+    "inputArtifacts": {"objectKey": "inputs/abc-123/bundle.zip"}
+  }'
+```
+
+Response `inputArtifacts` will always contain `objectKey` (MinIO key). The `job.created` outbox event carries this `objectKey` instead of raw code. See [Artifact Storage](docs/ARTIFACT_STORAGE.md) for details.
 
 ## Database Schema
 
@@ -101,7 +142,7 @@ curl -X POST http://localhost:3000/api/v1/jobs \
 
 ## Configuration
 
-See `.env.example` for all available options.
+See `.env.example` for all available options. For artifact storage (when submitting `code` or `project`), set MinIO variables: `MINIO_ENDPOINT`, `MINIO_REGION`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`.
 
 ## Docker
 

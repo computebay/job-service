@@ -174,8 +174,12 @@ Invalid Transition Example:
      runtime: "node18",
      entrypoint: ["node", "app.js"],
      resources: {...},
-     inputArtifacts: {...}
+     inputArtifacts: {...}   // or "code": "..." or "project": { "path": "content" }
    }
+
+   When "code" or "project" is sent: idempotency is checked first; then job ID is generated,
+   content zipped, uploaded to MinIO (inputs/<jobId>/bundle.zip), and job is created with
+   inputArtifacts: { objectKey }. job.created event carries objectKey only. See docs/ARTIFACT_STORAGE.md.
 
 2. MIDDLEWARE: Auth Middleware
    - Extract & decode JWT

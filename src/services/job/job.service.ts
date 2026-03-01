@@ -17,6 +17,22 @@ export class JobService {
   }
 
   /**
+   * If the idempotency key was already used, return the existing job; otherwise null.
+   * Use this before uploading artifacts to avoid uploading on retries.
+   */
+  async getExistingJobForIdempotencyKey(
+    idempotencyKey: string,
+    userId: string,
+  ) {
+    const existing = await this.repository.getIdempotencyKey(
+      idempotencyKey,
+      userId,
+    );
+    if (!existing) return null;
+    return this.repository.getJobById(existing.jobId);
+  }
+
+  /**
    * Create a new job with idempotency support
    */
   async createJob(
