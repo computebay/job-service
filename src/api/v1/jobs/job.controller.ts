@@ -9,8 +9,44 @@ import { AuthenticatedRequest } from "../../../types/auth";
 import { CreateJobInput } from "../../../types/job.types";
 import { logger } from "../../../libs/logger";
 import { z } from "zod";
-import { v4 as uuid } from "uuid";
-import { prepareAndUploadArtifact } from "../../../libs/artifact.upload";
+
+function toJobResponse(job: {
+  id: string;
+  ownerUserId: string;
+  orgId: string;
+  status: string;
+  priority: number;
+  jobType: string;
+  repoUrl: string;
+  branch: string;
+  runtime: string;
+  startCommand: string;
+  resources: Record<string, unknown>;
+  retryPolicy?: Record<string, unknown> | null;
+  outputArtifacts?: Record<string, unknown> | null;
+  createdAt: Date;
+  startedAt?: Date | null;
+  completedAt?: Date | null;
+}) {
+  return {
+    id: job.id,
+    ownerUserId: job.ownerUserId,
+    orgId: job.orgId,
+    status: job.status,
+    priority: job.priority,
+    jobType: job.jobType,
+    repoUrl: job.repoUrl,
+    branch: job.branch,
+    runtime: job.runtime,
+    startCommand: job.startCommand,
+    resources: job.resources,
+    retryPolicy: job.retryPolicy,
+    outputArtifacts: job.outputArtifacts,
+    createdAt: job.createdAt.toISOString(),
+    startedAt: job.startedAt?.toISOString(),
+    completedAt: job.completedAt?.toISOString(),
+  };
+}
 
 export class JobController {
   /**
@@ -23,7 +59,7 @@ export class JobController {
   ): Promise<void> {
     try {
       const authReq = request as AuthenticatedRequest;
-      const userId = authReq.user.sub; // Use 'sub' from JWT
+      const userId = authReq.user.sub;
       const orgId = authReq.user.orgId;
       const idempotencyKey = request.headers["idempotency-key"] as string;
 
@@ -43,65 +79,26 @@ export class JobController {
         "Creating job",
       );
 
-      // Idempotency: return existing job without uploading (avoids orphan artifacts on retry)
+      // Idempotency: return existing job
       const existingJob = await jobService.getExistingJobForIdempotencyKey(
         idempotencyKey,
         userId,
       );
       if (existingJob) {
-        reply.status(200).send({
-          id: existingJob.id,
-          ownerUserId: existingJob.ownerUserId,
-          orgId: existingJob.orgId,
-          status: existingJob.status,
-          priority: existingJob.priority,
-          jobType: existingJob.jobType,
-          runtime: existingJob.runtime,
-          entrypoint: existingJob.entrypoint,
-          resources: existingJob.resources,
-          retryPolicy: existingJob.retryPolicy,
-          inputArtifacts: existingJob.inputArtifacts,
-          outputArtifacts: existingJob.outputArtifacts,
-          createdAt: existingJob.createdAt.toISOString(),
-          startedAt: existingJob.startedAt?.toISOString(),
-          completedAt: existingJob.completedAt?.toISOString(),
-        });
+        reply.status(200).send(toJobResponse(existingJob));
         return;
-      }
-
-      let inputArtifacts: Record<string, unknown>;
-      let predefinedJobId: string | undefined;
-
-      if (body.code !== undefined) {
-        predefinedJobId = uuid();
-        const objectKey = await prepareAndUploadArtifact(
-          predefinedJobId,
-          { code: body.code },
-          body.entrypoint,
-        );
-        inputArtifacts = { objectKey };
-      } else if (body.project !== undefined) {
-        predefinedJobId = uuid();
-        const objectKey = await prepareAndUploadArtifact(
-          predefinedJobId,
-          { project: body.project },
-          body.entrypoint,
-        );
-        inputArtifacts = { objectKey };
-      } else {
-        inputArtifacts = body.inputArtifacts as Record<string, unknown>;
       }
 
       const createInput: CreateJobInput = {
         jobType: body.jobType,
+        repoUrl: body.repoUrl,
+        branch: body.branch,
         runtime: body.runtime,
-        entrypoint: body.entrypoint,
+        startCommand: body.startCommand,
         resources: body.resources,
-        inputArtifacts,
         retryPolicy: body.retryPolicy ?? null,
         priority: body.priority ?? 0,
         orgId: body.orgId,
-        ...(predefinedJobId && { id: predefinedJobId }),
       };
 
       const job = await jobService.createJob(
@@ -119,23 +116,7 @@ export class JobController {
         return;
       }
 
-      reply.status(201).send({
-        id: job.id,
-        ownerUserId: job.ownerUserId,
-        orgId: job.orgId,
-        status: job.status,
-        priority: job.priority,
-        jobType: job.jobType,
-        runtime: job.runtime,
-        entrypoint: job.entrypoint,
-        resources: job.resources,
-        retryPolicy: job.retryPolicy,
-        inputArtifacts: job.inputArtifacts,
-        outputArtifacts: job.outputArtifacts,
-        createdAt: job.createdAt.toISOString(),
-        startedAt: job.startedAt?.toISOString(),
-        completedAt: job.completedAt?.toISOString(),
-      });
+      reply.status(201).send(toJobResponse(job));
     } catch (error) {
       if (error instanceof z.ZodError) {
         logger.warn({ errors: error.errors }, "Validation error");
@@ -172,7 +153,7 @@ export class JobController {
     try {
       const { id } = request.params as { id: string };
       const authReq = request as AuthenticatedRequest;
-      const userId = authReq.user.sub; // Use 'sub' from JWT
+      const userId = authReq.user.sub;
       const orgId = authReq.user.orgId;
 
       const job = await jobService.getJob(id);
@@ -185,7 +166,6 @@ export class JobController {
         return;
       }
 
-      // Verify ownership
       if (job.ownerUserId !== userId || job.orgId !== orgId) {
         reply.status(403).send({
           error: "FORBIDDEN",
@@ -194,23 +174,7 @@ export class JobController {
         return;
       }
 
-      reply.send({
-        id: job.id,
-        ownerUserId: job.ownerUserId,
-        orgId: job.orgId,
-        status: job.status,
-        priority: job.priority,
-        jobType: job.jobType,
-        runtime: job.runtime,
-        entrypoint: job.entrypoint,
-        resources: job.resources,
-        retryPolicy: job.retryPolicy,
-        inputArtifacts: job.inputArtifacts,
-        outputArtifacts: job.outputArtifacts,
-        createdAt: job.createdAt.toISOString(),
-        startedAt: job.startedAt?.toISOString(),
-        completedAt: job.completedAt?.toISOString(),
-      });
+      reply.send(toJobResponse(job));
     } catch (error) {
       logger.error({ error }, "Error getting job");
       reply.status(500).send({
@@ -230,7 +194,7 @@ export class JobController {
   ): Promise<void> {
     try {
       const authReq = request as AuthenticatedRequest;
-      const userId = authReq.user.sub; // Use 'sub' from JWT
+      const userId = authReq.user.sub;
       const orgId = authReq.user.orgId;
 
       const limit = Math.min(parseInt((request.query as any).limit) || 50, 100);
@@ -244,23 +208,7 @@ export class JobController {
       );
 
       reply.send({
-        jobs: jobs.map((job) => ({
-          id: job.id,
-          ownerUserId: job.ownerUserId,
-          orgId: job.orgId,
-          status: job.status,
-          priority: job.priority,
-          jobType: job.jobType,
-          runtime: job.runtime,
-          entrypoint: job.entrypoint,
-          resources: job.resources,
-          retryPolicy: job.retryPolicy,
-          inputArtifacts: job.inputArtifacts,
-          outputArtifacts: job.outputArtifacts,
-          createdAt: job.createdAt.toISOString(),
-          startedAt: job.startedAt?.toISOString(),
-          completedAt: job.completedAt?.toISOString(),
-        })),
+        jobs: jobs.map((job) => toJobResponse(job)),
         pagination: {
           limit,
           offset,
@@ -288,7 +236,7 @@ export class JobController {
     try {
       const { id } = request.params as { id: string };
       const authReq = request as AuthenticatedRequest;
-      const userId = authReq.user.sub; // Use 'sub' from JWT
+      const userId = authReq.user.sub;
       const orgId = authReq.user.orgId;
 
       const job = await jobService.getJob(id);
@@ -301,7 +249,6 @@ export class JobController {
         return;
       }
 
-      // Verify ownership
       if (job.ownerUserId !== userId || job.orgId !== orgId) {
         reply.status(403).send({
           error: "FORBIDDEN",
@@ -310,28 +257,11 @@ export class JobController {
         return;
       }
 
-      // Validate request body
       const body = cancelJobSchema.parse(request.body || {});
 
       const cancelledJob = await jobService.cancelJob(id, body.reason);
 
-      reply.send({
-        id: cancelledJob.id,
-        ownerUserId: cancelledJob.ownerUserId,
-        orgId: cancelledJob.orgId,
-        status: cancelledJob.status,
-        priority: cancelledJob.priority,
-        jobType: cancelledJob.jobType,
-        runtime: cancelledJob.runtime,
-        entrypoint: cancelledJob.entrypoint,
-        resources: cancelledJob.resources,
-        retryPolicy: cancelledJob.retryPolicy,
-        inputArtifacts: cancelledJob.inputArtifacts,
-        outputArtifacts: cancelledJob.outputArtifacts,
-        createdAt: cancelledJob.createdAt.toISOString(),
-        startedAt: cancelledJob.startedAt?.toISOString(),
-        completedAt: cancelledJob.completedAt?.toISOString(),
-      });
+      reply.send(toJobResponse(cancelledJob));
     } catch (error) {
       if (error instanceof z.ZodError) {
         logger.warn({ errors: error.errors }, "Validation error");

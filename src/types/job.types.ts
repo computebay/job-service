@@ -1,14 +1,19 @@
 import { JobStatus } from "@prisma/client";
 
+export interface JobResources {
+  cpu: number;
+  memoryMB: number;
+}
+
 export interface CreateJobInput {
-  id?: string; // optional: when provided (e.g. for artifact upload flow), job is created with this id
+  id?: string; // optional: when provided, job is created with this id
   jobType: string;
+  repoUrl: string;
+  branch?: string;
   runtime: string;
-  entrypoint: string[];
-  resources: Record<string, any>;
-  /** Stored artifact reference; typically { objectKey: "inputs/<jobId>/bundle.zip" } */
-  inputArtifacts: Record<string, any>;
-  retryPolicy?: Record<string, any> | null;
+  startCommand: string;
+  resources: JobResources;
+  retryPolicy?: Record<string, unknown> | null;
   priority?: number;
   orgId: string;
 }
@@ -26,20 +31,33 @@ export interface JobResponse {
   status: JobStatus;
   priority: number;
   jobType: string;
+  repoUrl: string;
+  branch: string;
   runtime: string;
-  entrypoint: string[];
-  resources: Record<string, any>;
-  retryPolicy?: Record<string, any>;
-  inputArtifacts: Record<string, any>;
-  outputArtifacts?: Record<string, any>;
+  startCommand: string;
+  resources: JobResources;
+  retryPolicy?: Record<string, unknown>;
+  outputArtifacts?: Record<string, unknown>;
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
+}
+
+export interface JobCreatedEventPayload {
+  jobId: string;
+  orgId: string;
+  repoUrl: string;
+  branch: string;
+  runtime: string;
+  startCommand: string;
+  resources: JobResources;
+  jobType: string;
+  priority: number;
 }
 
 export interface OutboxEventPayload {
   aggregateType: "job";
   aggregateId: string;
   eventType: string;
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
 }

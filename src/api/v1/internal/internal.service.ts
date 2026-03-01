@@ -65,8 +65,19 @@ export const UpdateJobState = async () => {
           return;
         }
 
+        const job = await prisma.job.findUnique({ where: { id: jobId } });
+        if (!job) {
+          logger.warn(
+            { jobId, eventType, nodeId },
+            "Job not found, skipping state update (stale or orphaned message)",
+          );
+          channel.ack(msg);
+          return;
+        }
+
         switch (eventType) {
           case "job.running":
+          case "job.started":
             await prisma.job.update({
               where: { id: jobId },
               data: {
@@ -86,17 +97,6 @@ export const UpdateJobState = async () => {
               },
             });
             logger.info({ jobId }, "Job marked as completed");
-            break;
-
-          case "job.started":
-            await prisma.job.update({
-              where: { id: jobId },
-              data: {
-                status: JobStatus.RUNNING,
-                startedAt: new Date(),
-              },
-            });
-            logger.info({ jobId }, "Job started running");
             break;
 
           case "job.failed":

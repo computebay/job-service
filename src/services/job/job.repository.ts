@@ -1,5 +1,5 @@
 import { db } from "../../libs/prisma";
-import { Job, JobStatus, OutboxEvent, Prisma } from "@prisma/client";
+import { Job, JobStatus, OutboxEvent, Prisma } from "../../generated/prisma/client";
 import { CreateJobInput } from "../../types/job.types";
 
 export class JobRepository {
@@ -13,7 +13,7 @@ export class JobRepository {
     outboxEvents: Array<{
       aggregateType: string;
       eventType: string;
-      payload: Record<string, any>;
+      payload: Record<string, unknown>;
     }>,
   ): Promise<Job> {
     return db.$transaction(async (tx) => {
@@ -24,10 +24,11 @@ export class JobRepository {
           orgId,
           status: JobStatus.QUEUED,
           jobType: input.jobType,
+          repoUrl: input.repoUrl,
+          branch: input.branch ?? "main",
           runtime: input.runtime,
-          entrypoint: input.entrypoint,
+          startCommand: input.startCommand,
           resources: input.resources,
-          inputArtifacts: input.inputArtifacts,
           retryPolicy: input.retryPolicy || Prisma.JsonNull,
           priority: input.priority || 0,
         },
@@ -106,7 +107,7 @@ export class JobRepository {
     outboxEvents?: Array<{
       aggregateType: string;
       eventType: string;
-      payload: Record<string, any>;
+      payload: Record<string, unknown>;
     }>,
   ): Promise<Job> {
     return db.$transaction(async (tx) => {

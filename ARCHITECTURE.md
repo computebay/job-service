@@ -171,15 +171,16 @@ Invalid Transition Example:
    }
    Body: {
      jobType: "batch",
+     repoUrl: "https://github.com/owner/repo",
+     branch: "main",
      runtime: "node18",
-     entrypoint: ["node", "app.js"],
-     resources: {...},
-     inputArtifacts: {...}   // or "code": "..." or "project": { "path": "content" }
+     startCommand: "node main.js",
+     resources: { cpu, memoryMB },
+     orgId: "..."
    }
 
-   When "code" or "project" is sent: idempotency is checked first; then job ID is generated,
-   content zipped, uploaded to MinIO (inputs/<jobId>/bundle.zip), and job is created with
-   inputArtifacts: { objectKey }. job.created event carries objectKey only. See docs/ARTIFACT_STORAGE.md.
+   repoUrl must be HTTPS and a public GitHub URL. job.created event carries jobId, orgId,
+   repoUrl, branch, runtime, startCommand, resources, jobType, priority. See docs/GIT_EXECUTION.md.
 
 2. MIDDLEWARE: Auth Middleware
    - Extract & decode JWT

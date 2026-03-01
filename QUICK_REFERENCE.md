@@ -63,10 +63,12 @@ Headers:
 Body:
 {
   "jobType": "batch",
+  "repoUrl": "https://github.com/owner/repo",
+  "branch": "main",
   "runtime": "node18",
-  "entrypoint": ["node", "main.js"],
+  "startCommand": "node main.js",
   "resources": { "cpu": 1, "memoryMB": 512 },
-  "inputArtifacts": { "code": "s3://bucket/app.zip" }
+  "orgId": "org-123"
 }
 ```
 

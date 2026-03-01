@@ -1,34 +1,32 @@
 import { z } from "zod";
 
+const GITHUB_HTTPS_REGEX =
+  /^https:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(\/)?$/;
+
+export const resourcesSchema = z.object({
+  cpu: z.number().positive("cpu must be a positive number"),
+  memoryMB: z.number().positive("memoryMB must be a positive number"),
+});
+
 export const createJobSchema = z
   .object({
     jobType: z.string().min(1, "jobType is required"),
+    repoUrl: z
+      .string()
+      .min(1, "repoUrl is required")
+      .url("repoUrl must be a valid URL")
+      .refine(
+        (url) => GITHUB_HTTPS_REGEX.test(url),
+        "repoUrl must be an HTTPS public GitHub URL (e.g. https://github.com/owner/repo)"
+      ),
+    branch: z.string().min(1).optional().default("main"),
     runtime: z.string().min(1, "runtime is required"),
-    entrypoint: z
-      .array(z.string())
-      .min(1, "entrypoint must have at least one element"),
-    resources: z.record(z.any()),
-    /** Inline code: will be zipped and uploaded to MinIO; objectKey stored in inputArtifacts */
-    code: z.string().optional(),
-    /** Multi-file project: path → content; will be zipped and uploaded; objectKey stored in inputArtifacts */
-    project: z.record(z.string()).optional(),
-    /** Pre-computed artifact (e.g. objectKey from another system). If omitted, code or project must be provided. */
-    inputArtifacts: z.record(z.any()).optional(),
-    retryPolicy: z.record(z.any()).optional(),
+    startCommand: z.string().min(1, "startCommand is required"),
+    resources: resourcesSchema,
+    retryPolicy: z.record(z.unknown()).optional(),
     priority: z.number().int().min(0).max(10).optional().default(0),
     orgId: z.string(),
-  })
-  .refine(
-    (data) =>
-      data.code !== undefined ||
-      data.project !== undefined ||
-      (data.inputArtifacts &&
-        typeof data.inputArtifacts.objectKey === "string"),
-    {
-      message:
-        "One of 'code', 'project', or 'inputArtifacts.objectKey' is required for artifact storage",
-    }
-  );
+  });
 
 export const updateJobStateSchema = z.object({
   status: z.enum(["QUEUED", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"]),

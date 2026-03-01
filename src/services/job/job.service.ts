@@ -7,8 +7,8 @@ import {
 import { CreateJobInput } from "@/types/job.types";
 import { JobStatus } from "@prisma/client";
 import { logger } from "@/libs/logger";
-import { v4 as uuid } from "uuid";
 import { getChannel, getExchangeName } from "@/config/rabbitmq";
+
 export class JobService {
   private repository: JobRepository;
 
@@ -18,7 +18,6 @@ export class JobService {
 
   /**
    * If the idempotency key was already used, return the existing job; otherwise null.
-   * Use this before uploading artifacts to avoid uploading on retries.
    */
   async getExistingJobForIdempotencyKey(
     idempotencyKey: string,
@@ -66,13 +65,13 @@ export class JobService {
         payload: {
           jobId: undefined, // Will be set to job.id by createJob
           orgId: input.orgId,
-          jobType: input.jobType,
+          repoUrl: input.repoUrl,
+          branch: input.branch ?? "main",
           runtime: input.runtime,
-          entrypoint: input.entrypoint,
+          startCommand: input.startCommand,
           resources: input.resources,
-          inputArtifacts: input.inputArtifacts,
-          retryPolicy: input.retryPolicy || null,
-          priority: input.priority || 0,
+          jobType: input.jobType,
+          priority: input.priority ?? 0,
         },
       },
     ]);
@@ -197,11 +196,10 @@ export class JobService {
     logger.info({ count: events.length }, "Publishing outbox events");
 
     for (const event of events) {
-      //Publish events to rabbit mq
       const channel = getChannel();
       const exchange = getExchangeName();
 
-      const routingKey = `job.${event.eventType.toLocaleLowerCase()}`;
+      const routingKey = `job.${event.eventType.toLowerCase()}`;
 
       const message = Buffer.from(JSON.stringify(event.payload));
 

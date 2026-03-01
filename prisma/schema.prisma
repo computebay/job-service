@@ -36,17 +36,18 @@ model Job {
   status          JobStatus  @default(QUEUED)
   priority        Int        @default(0)
 
-  // Execution definition
+  // Execution definition (Git-based)
   jobType         String     // "batch"
+  repoUrl         String     // https://github.com/owner/repo
+  branch          String     @default("main")
   runtime         String     // "node18", "python3.11"
-  entrypoint      String[]   // ["node", "main.js"]
+  startCommand    String     // "node main.js"
 
   // Execution config
-  resources       Json       // { cpu, memoryMB, timeoutSec }
+  resources       Json       // { cpu, memoryMB }
   retryPolicy     Json?      // { maxAttempts, backoff }
 
-  // Artifacts
-  inputArtifacts  Json       // { code: "s3://..." }
+  // Outputs (populated by executor)
   outputArtifacts Json?
   assignedNodeId  String?
   error           String?

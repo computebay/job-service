@@ -36,6 +36,7 @@ The service does **NOT** handle:
 - Job execution (workers handle this)
 - Worker management
 - Credit/billing tracking
+- Artifact storage (jobs use Git repositories)
 
 ## Technology Stack
 
@@ -78,9 +79,7 @@ Terminal states: COMPLETED, FAILED, CANCELLED
 
 ## Example: Create a Job
 
-You can provide job input in three ways:
-
-**1. Inline code** (zipped and uploaded to MinIO; `job.created` emits `objectKey`):
+Jobs execute from **public GitHub repositories**. Provide `repoUrl`, `branch`, `runtime`, and `startCommand`:
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/jobs \
@@ -89,60 +88,33 @@ curl -X POST http://localhost:3000/api/v1/jobs \
   -H "Content-Type: application/json" \
   -d '{
     "jobType": "batch",
+    "repoUrl": "https://github.com/owner/repo",
+    "branch": "main",
     "runtime": "node18",
-    "entrypoint": ["node", "app.js"],
+    "startCommand": "node main.js",
     "resources": {"cpu": 1, "memoryMB": 512},
-    "code": "console.log(\"Hello\");"
+    "orgId": "org-123"
   }'
 ```
 
-**2. Multi-file project** (zipped and uploaded to MinIO):
+- **repoUrl**: Must be HTTPS and a public GitHub URL (e.g. `https://github.com/owner/repo`)
+- **branch**: Optional, defaults to `main`
+- **runtime**: Runtime identifier (e.g. `node18`, `python3.11`)
+- **startCommand**: Command to execute (e.g. `node main.js`)
+- **resources**: `{ cpu, memoryMB }`
 
-```bash
-curl -X POST http://localhost:3000/api/v1/jobs \
-  -H "Authorization: Bearer <jwt_token>" \
-  -H "Idempotency-Key: job-$(date +%s)" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jobType": "batch",
-    "runtime": "node18",
-    "entrypoint": ["node", "index.js"],
-    "resources": {"cpu": 1, "memoryMB": 512},
-    "project": {
-      "index.js": "require(\"./lib\");",
-      "lib.js": "module.exports = () => 42;"
-    }
-  }'
-```
-
-**3. Pre-computed artifact** (objectKey already in MinIO):
-
-```bash
-curl -X POST http://localhost:3000/api/v1/jobs \
-  -H "Authorization: Bearer <jwt_token>" \
-  -H "Idempotency-Key: job-$(date +%s)" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jobType": "batch",
-    "runtime": "node18",
-    "entrypoint": ["node", "app.js"],
-    "resources": {"cpu": 1, "memoryMB": 512},
-    "inputArtifacts": {"objectKey": "inputs/abc-123/bundle.zip"}
-  }'
-```
-
-Response `inputArtifacts` will always contain `objectKey` (MinIO key). The `job.created` outbox event carries this `objectKey` instead of raw code. See [Artifact Storage](docs/ARTIFACT_STORAGE.md) for details.
+The `job.created` event is emitted with `jobId`, `orgId`, `repoUrl`, `branch`, `runtime`, `startCommand`, `resources`, `jobType`, and `priority`. See [Git Execution](docs/GIT_EXECUTION.md) for details.
 
 ## Database Schema
 
-- **Job**: Core job entity with lifecycle
+- **Job**: Core job entity with lifecycle (repoUrl, branch, runtime, startCommand)
 - **JobAttempt**: Tracks retry attempts
 - **IdempotencyKey**: Prevents duplicate submissions
 - **OutboxEvent**: Reliable event publishing
 
 ## Configuration
 
-See `.env.example` for all available options. For artifact storage (when submitting `code` or `project`), set MinIO variables: `MINIO_ENDPOINT`, `MINIO_REGION`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`.
+See `.env.example` for all available options.
 
 ## Docker
 
