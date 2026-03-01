@@ -105,6 +105,7 @@ export const UpdateJobState = async () => {
               data: {
                 status: JobStatus.FAILED,
                 error: (data.error as string) || "Unknown error",
+                outputArtifacts: (data.output as string) || "Unknown output",
                 failedAt: new Date(),
               },
             });
