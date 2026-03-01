@@ -110,7 +110,11 @@ export const UpdateJobState = async () => {
             });
             logger.error({ jobId, error: data.error }, "Job failed");
             break;
-
+          
+          case "job.log.chunk":
+            
+            logger.info({ jobId, log: data.chunk }, "Job log chunk");
+            break;
           case "job.timeout":
             await prisma.job.update({
               where: { id: jobId },
