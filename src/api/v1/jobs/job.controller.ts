@@ -21,9 +21,9 @@ function toJobResponse(job: {
   branch: string;
   runtime: string;
   startCommand: string;
-  resources: Record<string, unknown>;
-  retryPolicy?: Record<string, unknown> | null;
-  outputArtifacts?: Record<string, unknown> | null;
+  resources: unknown;
+  retryPolicy?: unknown;
+  outputArtifacts?: unknown;
   createdAt: Date;
   startedAt?: Date | null;
   completedAt?: Date | null;
