@@ -72,6 +72,7 @@ export class JobService {
           resources: input.resources,
           jobType: input.jobType,
           priority: input.priority ?? 0,
+          servicePort: input.servicePort,
         },
       },
     ]);
