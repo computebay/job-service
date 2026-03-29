@@ -198,9 +198,30 @@ export class JobService {
 
     for (const event of events) {
       const channel = getChannel();
-      const exchange = getExchangeName();
+      let exchange = getExchangeName();
 
       const routingKey = `job.${event.eventType.toLowerCase()}`;
+
+      // If it's a cancellation event, it must be directed strictly to the node processing it
+      if (event.eventType === "CANCELLED") {
+        const payload = event.payload as any;
+        if (payload?.jobId) {
+          const job = await this.repository.getJobById(payload.jobId);
+
+          if (job?.assignedNodeId) {
+            
+
+            // Can only cancel QUEUED or RUNNING jobs
+            if (![JobStatus.QUEUED, JobStatus.RUNNING].includes(job.status)) {
+              throw new InvalidStateTransitionError(job.status, JobStatus.CANCELLED);
+            }
+
+            logger.info({ job }, "Cancelling job");
+            this.updateJobStatus(job.id, JobStatus.CANCELLED);
+            exchange = `node.${job.assignedNodeId}.events`;
+          }
+        }
+      }
 
       const message = Buffer.from(JSON.stringify(event.payload));
 
@@ -223,27 +244,41 @@ export class JobService {
    * Explicitly emit a job.cancel event to tell the agent to stop and teardown the job
    */
   async emitCancelJobEvent(jobId: string) {
+    const job = await this.repository.getJobById(jobId);
+
+    if (!job) {
+      logger.error({ jobId }, "Cancel event skipped: Job not found");
+      return;
+    }
+    if (!job.assignedNodeId) {
+      logger.warn({ jobId }, "Cancel event skipped: Job is not assigned to a node");
+      return;
+    }
     const channel = getChannel();
-    const exchange = getExchangeName();
-    
+
+    // Bypass the restricted exchange by routing directly to the Worker's explicit queue
+    const queue = `queue.node.${job.assignedNodeId}`;
+
+    // Disguise the payload neatly so the worker intercepts the execution loop
     const payload = {
+      type: "CANCEL",
       jobId,
       timestamp: new Date().toISOString(),
     };
-
     const message = Buffer.from(JSON.stringify(payload));
-
-    const published = channel.publish(exchange, "job.cancel", message, {
+    // Notice we emit to the empty "" default exchange, specifying the queue exactly
+    const published = channel.publish("", queue, message, {
       persistent: true,
       contentType: "application/json",
     });
-
     if (!published) {
-      logger.error({ jobId }, "Failed to publish job.cancel event");
+      logger.error({ jobId, queue }, "Failed to publish job cancellation payload");
     } else {
-      logger.info({ jobId }, "Emitted job.cancel event to exchange");
+      logger.info({ jobId, queue }, "Emitted job cancellation payload straight to worker queue");
+      // this.updateJobStatus(jobId, JobStatus.CANCELLED);
     }
   }
+
 }
 
 // Export singleton instance

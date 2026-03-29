@@ -81,6 +81,7 @@ export const UpdateJobState = async () => {
             await prisma.job.update({
               where: { id: jobId },
               data: {
+                assignedNodeId: nodeId,
                 status: JobStatus.RUNNING,
                 startedAt: new Date(),
               },
