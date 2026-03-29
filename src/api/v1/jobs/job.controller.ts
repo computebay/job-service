@@ -99,6 +99,7 @@ export class JobController {
         retryPolicy: body.retryPolicy ?? null,
         priority: body.priority ?? 0,
         orgId: body.orgId,
+        servicePort: body.servicePort,
       };
 
       const job = await jobService.createJob(

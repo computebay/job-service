@@ -26,6 +26,7 @@ export const createJobSchema = z
     retryPolicy: z.record(z.unknown()).optional(),
     priority: z.number().int().min(0).max(10).optional().default(0),
     orgId: z.string(),
+    servicePort: z.number().int().positive("servicePort must be a positive number"),
   });
 
 export const updateJobStateSchema = z.object({

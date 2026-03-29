@@ -16,6 +16,7 @@ export interface CreateJobInput {
   retryPolicy?: Record<string, unknown> | null;
   priority?: number;
   orgId: string;
+  servicePort: number;
 }
 
 export interface UpdateJobStateInput {
