@@ -218,6 +218,32 @@ export class JobService {
 
     logger.info({ count: events.length }, "Finished publishing events");
   }
+
+  /**
+   * Explicitly emit a job.cancel event to tell the agent to stop and teardown the job
+   */
+  async emitCancelJobEvent(jobId: string) {
+    const channel = getChannel();
+    const exchange = getExchangeName();
+    
+    const payload = {
+      jobId,
+      timestamp: new Date().toISOString(),
+    };
+
+    const message = Buffer.from(JSON.stringify(payload));
+
+    const published = channel.publish(exchange, "job.cancel", message, {
+      persistent: true,
+      contentType: "application/json",
+    });
+
+    if (!published) {
+      logger.error({ jobId }, "Failed to publish job.cancel event");
+    } else {
+      logger.info({ jobId }, "Emitted job.cancel event to exchange");
+    }
+  }
 }
 
 // Export singleton instance

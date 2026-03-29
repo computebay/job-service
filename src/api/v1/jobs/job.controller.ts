@@ -292,4 +292,52 @@ export class JobController {
       });
     }
   }
+
+  /**
+   * Hard Cancel a job (Emits job.cancel event)
+   * POST /api/v1/jobs/:id/hard-cancel
+   */
+  static async hardCancelJob(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> {
+    try {
+      const { id } = request.params as { id: string };
+      const authReq = request as AuthenticatedRequest;
+      const userId = authReq.user.sub;
+      const orgId = authReq.user.orgId;
+
+      const job = await jobService.getJob(id);
+
+      if (!job) {
+        reply.status(404).send({
+          error: "NOT_FOUND",
+          message: "Job not found",
+        });
+        return;
+      }
+
+      if (job.ownerUserId !== userId || job.orgId !== orgId) {
+        reply.status(403).send({
+          error: "FORBIDDEN",
+          message: "You do not have access to this job",
+        });
+        return;
+      }
+
+      // We explicitly emit the cancel event bypass outbox
+      await jobService.emitCancelJobEvent(id);
+
+      reply.send({
+        message: "Job cancellation event emitted successfully",
+        id,
+      });
+    } catch (error) {
+      logger.error({ error }, "Error emitting hard cancel event");
+      reply.status(500).send({
+        error: "INTERNAL_ERROR",
+        message: "Failed to emit cancel event",
+      });
+    }
+  }
 }

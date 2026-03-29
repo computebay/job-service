@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { FastifyInstance } from "fastify";
 import { JobController } from "./job.controller";
 import { authMiddleware } from "../../../middlewares/auth.middleware";
 
@@ -23,6 +23,12 @@ export async function jobRoutes(app: FastifyInstance) {
     fastify.post<{ Params: { id: string }; Body: any }>(
       "/api/v1/jobs/:id/cancel",
       JobController.cancelJob,
+    );
+
+    // Hard cancel job
+    fastify.post<{ Params: { id: string } }>(
+      "/api/v1/jobs/:id/hard-cancel",
+      JobController.hardCancelJob,
     );
   });
 }
