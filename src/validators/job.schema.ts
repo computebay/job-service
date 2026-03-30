@@ -27,6 +27,8 @@ export const createJobSchema = z
     priority: z.number().int().min(0).max(10).optional().default(0),
     orgId: z.string(),
     servicePort: z.number().int().positive("servicePort must be a positive number"),
+    buildCommand: z.string().optional(),
+    runtimeCommand: z.string().optional(),
   });
 
 export const updateJobStateSchema = z.object({

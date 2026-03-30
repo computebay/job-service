@@ -73,6 +73,8 @@ export class JobService {
           jobType: input.jobType,
           priority: input.priority ?? 0,
           servicePort: input.servicePort,
+          buildCommand: input.buildCommand,
+          runtimeCommand: input.runtimeCommand,
         },
       },
     ]);

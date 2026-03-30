@@ -17,6 +17,8 @@ export interface CreateJobInput {
   priority?: number;
   orgId: string;
   servicePort: number;
+  buildCommand?: string;
+  runtimeCommand?: string;
 }
 
 export interface UpdateJobStateInput {

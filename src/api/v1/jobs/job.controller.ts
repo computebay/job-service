@@ -100,6 +100,8 @@ export class JobController {
         priority: body.priority ?? 0,
         orgId: body.orgId,
         servicePort: body.servicePort,
+        buildCommand: body.buildCommand,
+        runtimeCommand: body.runtimeCommand,
       };
 
       const job = await jobService.createJob(
