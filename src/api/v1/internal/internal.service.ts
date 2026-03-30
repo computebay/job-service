@@ -128,7 +128,49 @@ export const UpdateJobState = async () => {
             });
             logger.error({ jobId }, "Job timed out");
             break;
-
+          case "service.running":
+            await prisma.job.update({
+              where: { id: jobId },
+              data: {
+                status: JobStatus.RUNNING,
+                startedAt: new Date(),
+              },
+            });
+            logger.info({ jobId }, "Job started running");
+            break;
+          case "service.completed":
+            await prisma.job.update({
+              where: { id: jobId },
+              data: {
+                status: JobStatus.COMPLETED,
+                completedAt: new Date(),
+              },
+            });
+            logger.info({ jobId }, "Job marked as completed");
+            break;
+          case "service.failed":
+            await prisma.job.update({
+              where: { id: jobId },
+              data: {
+                status: JobStatus.FAILED,
+                error: (data.error as string) || "Unknown error",
+                outputArtifacts: (data.output as string) || "Unknown output",
+                failedAt: new Date(),
+              },
+            });
+            logger.error({ jobId, error: data.error }, "Job failed");
+            break;
+          case "service.timeout":
+            await prisma.job.update({
+              where: { id: jobId },
+              data: {
+                status: JobStatus.FAILED,
+                error: "Job timed out",
+                failedAt: new Date(),
+              },
+            });
+            logger.error({ jobId }, "Job timed out");
+            break;
           default:
             logger.warn({ eventType, jobId, nodeId }, "Unknown event type");
         }
