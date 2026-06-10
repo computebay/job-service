@@ -245,15 +245,16 @@ export class JobService {
       logger.error({ jobId }, "Cancel event skipped: Job not found");
       return;
     }
-    if (!job.assignedNodeId) {
-      logger.warn({ jobId }, "Cancel event skipped: Job is not assigned to a node");
-      return;
-    }
-
-    // Mark as CANCELLING immediately so callers see the intent reflected in status.
-    // The worker will transition to CANCELLED once it has finished teardown.
+    // Mark as CANCELLED immediately. If the job is assigned to a node, also emit
+    // a CANCEL event to the worker's queue so it can tear down. If unassigned
+    // (QUEUED), just update the status — no worker to notify.
     await this.updateJobStatus(jobId, JobStatus.CANCELLED);
     logger.info({ jobId }, "Job status set to CANCELLED");
+
+    if (!job.assignedNodeId) {
+      logger.info({ jobId }, "Job not assigned to a node; status updated to CANCELLED without emitting event");
+      return;
+    }
 
     const channel = getChannel();
 
