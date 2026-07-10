@@ -15,4 +15,7 @@ export const config = {
   internal: {
     token: process.env.INTERNAL_TOKEN || "internal-secret",
   },
+  redis: {
+    url: process.env.REDIS_URL || "redis://localhost:6379",
+  },
 };

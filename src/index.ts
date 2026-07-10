@@ -7,6 +7,7 @@ import { healthRoutes } from "./api/v1/health/health.routes";
 import { jobService } from "./services/job/job.service";
 import { connectRabbitMQ } from "./config/rabbitmq";
 import { UpdateJobState } from "@/api/v1/internal/internal.service";
+import { initializeLogStream } from "@/services/log/log.service";
 
 async function bootstrap() {
   const app = Fastify({
@@ -43,6 +44,9 @@ async function bootstrap() {
 
   //initialise job update consumer
   UpdateJobState();
+
+  // Initialize log streaming service
+  initializeLogStream();
   // Error handler
   app.setErrorHandler((error, request, reply) => {
     logger.error({ error, path: request.url }, "Unhandled error");

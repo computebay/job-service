@@ -2,6 +2,7 @@ import { connectRabbitMQ, getChannel } from "@/config/rabbitmq";
 import prisma from "@/config/db";
 import { JobStatus } from "@prisma/client";
 import { logger } from "@/libs/logger";
+import { getRedisPublisher, getLogChannel } from "@/config/redis";
 
 const QUEUE_NAME = "job-service.events";
 const SCHEDULER_EXCHANGE = "compute-bay.jobs";
@@ -118,8 +119,15 @@ export const UpdateJobState = async () => {
             break;
           
           case "job.log.chunk":
-            
-            logger.info({ jobId, log: data.chunk }, "Job log chunk");
+            try {
+              const redis = getRedisPublisher();
+              const channel = getLogChannel(jobId);
+              const payload = JSON.stringify({ chunk: data.chunk, jobId });
+              await redis.publish(channel, payload);
+              logger.debug({ jobId }, "Published log chunk to Redis");
+            } catch (err) {
+              logger.error({ error: err, jobId }, "Failed to publish log chunk to Redis");
+            }
             break;
           case "job.timeout":
           case "service.timeout":
