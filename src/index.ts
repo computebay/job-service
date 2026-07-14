@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import { config } from "./config/config";
 import { logger } from "./libs/logger";
 import { jobRoutes } from "./api/v1/jobs/job.routes";
@@ -24,6 +25,14 @@ async function bootstrap() {
         },
       }),
     },
+  });
+
+  // CORS
+  await app.register(cors, {
+    origin: config.app.corsOrigin,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Internal-Token"],
+    credentials: true,
   });
 
   // Register routes
