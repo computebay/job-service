@@ -3,6 +3,7 @@ import prisma from "@/config/db";
 import { JobStatus } from "@prisma/client";
 import { logger } from "@/libs/logger";
 import { getRedisPublisher, getLogChannel } from "@/config/redis";
+import { sendJobCompletion } from "@/services/log/log.service";
 
 const QUEUE_NAME = "job-service.events";
 const SCHEDULER_EXCHANGE = "compute-bay.jobs";
@@ -107,6 +108,7 @@ export const UpdateJobState = async () => {
                 },
               },
             });
+            sendJobCompletion(jobId);
             logger.info({ jobId }, "Job marked as completed");
             break;
 
@@ -126,6 +128,7 @@ export const UpdateJobState = async () => {
                 failedAt: new Date(),
               },
             });
+            sendJobCompletion(jobId);
             logger.error({ jobId, error: data.error }, "Job failed");
             break;
           
@@ -150,6 +153,7 @@ export const UpdateJobState = async () => {
                 failedAt: new Date(),
               },
             });
+            sendJobCompletion(jobId);
             logger.error({ jobId }, "Job timed out");
             break;
           
