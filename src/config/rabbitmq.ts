@@ -1,7 +1,9 @@
-import amqp, { Channel, Connection } from "amqplib";
-import { logger } from "../libs/logger";
+import amqp, { Channel, ChannelModel } from "amqplib";
+import { getLogger } from "@computebay/observability";
 
-let connection: Connection | null = null;
+const logger = getLogger();
+
+let connection: ChannelModel | null = null;
 let channel: Channel | null = null;
 
 const EXCHANGE_NAME = "compute-bay.jobs";

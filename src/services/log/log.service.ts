@@ -1,7 +1,9 @@
 import { FastifyReply } from "fastify";
 import { getRedisSubscriber, getLogChannel } from "@/config/redis";
-import { logger } from "@/libs/logger";
+import { getLogger } from "@computebay/observability";
 import Redis from "ioredis";
+
+const logger = getLogger();
 
 interface LogLine {
   ts: string;

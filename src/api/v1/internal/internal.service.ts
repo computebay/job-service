@@ -1,9 +1,11 @@
 import { connectRabbitMQ, getChannel } from "@/config/rabbitmq";
 import prisma from "@/config/db";
 import { JobStatus } from "@prisma/client";
-import { logger } from "@/libs/logger";
+import { getLogger, instrumentedHandler, instrumentedQuery } from "@computebay/observability";
 import { getRedisPublisher, getLogChannel } from "@/config/redis";
 import { sendJobCompletion } from "@/services/log/log.service";
+
+const logger = getLogger();
 
 const QUEUE_NAME = "job-service.events";
 const SCHEDULER_EXCHANGE = "compute-bay.jobs";
@@ -32,70 +34,65 @@ export const UpdateJobState = async () => {
     // Bind to shared node events exchange where workers publish job updates
     await channel.assertExchange("node.events", "topic", { durable: true });
     await channel.bindQueue(QUEUE_NAME, "node.events", "node.#");
-    
+
     logger.info(`Started consuming from queue: ${QUEUE_NAME}`);
 
-    channel.consume(QUEUE_NAME, async (msg) => {
-      if (!msg) return;
+    const rawHandler = async (data: Record<string, unknown>, msg: any) => {
+      const routingKey = msg.fields.routingKey;
 
-      try {
-        const routingKey = msg.fields.routingKey;
-        const data = JSON.parse(msg.content.toString()) as Record<string, unknown>;
+      // Handle node registration
+      if (routingKey === "node.registered") {
+        const { nodeId, eventsExchange } = data as {
+          nodeId: string;
+          eventsExchange: string;
+        };
+        await bindNodeExchange(eventsExchange, nodeId);
+        return;
+      }
 
-        logger.info({ routingKey, data }, "Received event");
+      const eventType = data.event as string;
+      const jobId = data.jobId as string;
+      const nodeId = data.nodeId as string;
 
-        // Handle node registration — bind to the new node's events exchange
-        if (routingKey === "node.registered") {
-          const { nodeId, eventsExchange } = data as {
-            nodeId: string;
-            eventsExchange: string;
-          };
+      if (!jobId || typeof jobId !== "string") {
+        logger.warn({ data }, "Missing jobId in event payload");
+        return;
+      }
 
-          await bindNodeExchange(eventsExchange, nodeId);
-          channel.ack(msg);
-          return;
-        }
+      const job = await instrumentedQuery("SELECT", "jobs", "job-service", () =>
+        prisma.job.findUnique({ where: { id: jobId } }),
+      );
 
-        // All other messages are job state updates from node.{nodeId}.events exchanges
-        const eventType = data.event as string;
-        const jobId = data.jobId as string;
-        const nodeId = data.nodeId as string;
+      if (!job) {
+        logger.warn(
+          { jobId, eventType, nodeId },
+          "Job not found, skipping state update (stale or orphaned message)",
+        );
+        return;
+      }
 
-        if (!jobId || typeof jobId !== "string") {
-          logger.warn({ data }, "Missing jobId in event payload");
-          channel.ack(msg);
-          return;
-        }
-
-        const job = await prisma.job.findUnique({ where: { id: jobId } });
-        if (!job) {
-          logger.warn(
-            { jobId, eventType, nodeId },
-            "Job not found, skipping state update (stale or orphaned message)",
-          );
-          channel.ack(msg);
-          return;
-        }
-
-        switch (eventType) {
-          case "job.running":
-          case "job.started":
-          case "service.started":
-          case "service.running":
-            await prisma.job.update({
+      switch (eventType) {
+        case "job.running":
+        case "job.started":
+        case "service.started":
+        case "service.running":
+          await instrumentedQuery("UPDATE", "jobs", "job-service", () =>
+            prisma.job.update({
               where: { id: jobId },
               data: {
                 assignedNodeId: nodeId,
                 status: JobStatus.RUNNING,
                 startedAt: new Date(),
               },
-            });
-            logger.info({ jobId }, "Job started running");
-            break;
+            }),
+          );
+          logger.info({ jobId }, "Job started running");
+          break;
 
-          case "job.completed":
-          case "service.completed":
-            await prisma.job.update({
+        case "job.completed":
+        case "service.completed":
+          await instrumentedQuery("UPDATE", "jobs", "job-service", () =>
+            prisma.job.update({
               where: { id: jobId },
               data: {
                 status: JobStatus.COMPLETED,
@@ -107,14 +104,16 @@ export const UpdateJobState = async () => {
                   artifacts: data.artifacts ?? [],
                 },
               },
-            });
-            sendJobCompletion(jobId);
-            logger.info({ jobId }, "Job marked as completed");
-            break;
+            }),
+          );
+          sendJobCompletion(jobId);
+          logger.info({ jobId }, "Job marked as completed");
+          break;
 
-          case "job.failed":
-          case "service.failed":
-            await prisma.job.update({
+        case "job.failed":
+        case "service.failed":
+          await instrumentedQuery("UPDATE", "jobs", "job-service", () =>
+            prisma.job.update({
               where: { id: jobId },
               data: {
                 status: JobStatus.FAILED,
@@ -127,40 +126,54 @@ export const UpdateJobState = async () => {
                 },
                 failedAt: new Date(),
               },
-            });
-            sendJobCompletion(jobId);
-            logger.error({ jobId, error: data.error }, "Job failed");
-            break;
-          
-          case "job.log.chunk":
-            try {
-              const redis = getRedisPublisher();
-              const channel = getLogChannel(jobId);
-              const payload = JSON.stringify({ chunk: data.chunk, jobId });
-              await redis.publish(channel, payload);
-              logger.debug({ jobId }, "Published log chunk to Redis");
-            } catch (err) {
-              logger.error({ error: err, jobId }, "Failed to publish log chunk to Redis");
-            }
-            break;
-          case "job.timeout":
-          case "service.timeout":
-            await prisma.job.update({
+            }),
+          );
+          sendJobCompletion(jobId);
+          logger.error({ jobId, error: data.error }, "Job failed");
+          break;
+
+        case "job.log.chunk":
+          try {
+            const redis = getRedisPublisher();
+            const channel = getLogChannel(jobId);
+            const payload = JSON.stringify({ chunk: data.chunk, jobId });
+            await redis.publish(channel, payload);
+            logger.debug({ jobId }, "Published log chunk to Redis");
+          } catch (err) {
+            logger.error({ error: err, jobId }, "Failed to publish log chunk to Redis");
+          }
+          break;
+
+        case "job.timeout":
+        case "service.timeout":
+          await instrumentedQuery("UPDATE", "jobs", "job-service", () =>
+            prisma.job.update({
               where: { id: jobId },
               data: {
                 status: JobStatus.FAILED,
                 error: "Job timed out",
                 failedAt: new Date(),
               },
-            });
-            sendJobCompletion(jobId);
-            logger.error({ jobId }, "Job timed out");
-            break;
-          
-          default:
-            logger.warn({ eventType, jobId, nodeId }, "Unknown event type");
-        }
+            }),
+          );
+          sendJobCompletion(jobId);
+          logger.error({ jobId }, "Job timed out");
+          break;
 
+        default:
+          logger.warn({ eventType, jobId, nodeId }, "Unknown event type");
+      }
+    };
+
+    const handler = instrumentedHandler(rawHandler, {
+      queue: QUEUE_NAME,
+      service: "job-service",
+    });
+
+    channel.consume(QUEUE_NAME, async (msg) => {
+      if (!msg) return;
+      try {
+        await handler(msg);
         channel.ack(msg);
       } catch (error) {
         logger.error(

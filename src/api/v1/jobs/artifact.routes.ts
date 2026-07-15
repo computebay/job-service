@@ -2,7 +2,6 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import prisma from "@/config/db";
 import { authMiddleware } from "@/middlewares/auth.middleware";
 import { getPresignedUrl } from "@/libs/s3";
-import { JobStatus } from "@prisma/client";
 
 export async function artifactRoutes(app: FastifyInstance) {
   app.register(async (fastify) => {

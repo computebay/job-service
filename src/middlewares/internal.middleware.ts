@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { logger } from "../libs/logger";
+import { getLogger } from "@computebay/observability";
 
+const logger = getLogger();
 const INTERNAL_TOKEN = process.env.INTERNAL_TOKEN || "internal-secret";
 
 export async function internalMiddleware(

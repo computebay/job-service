@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { config } from "./config/config";
-import { logger } from "./libs/logger";
+import { getLogger, observabilityPlugin, getMetrics, initTelemetry, loadObservabilityConfig, createMetricsServer } from "@computebay/observability";
 import { jobRoutes } from "./api/v1/jobs/job.routes";
 import { artifactRoutes } from "./api/v1/jobs/artifact.routes";
 import { internalRoutes } from "./api/v1/internal/internal.routes";
@@ -11,7 +11,20 @@ import { connectRabbitMQ } from "./config/rabbitmq";
 import { UpdateJobState } from "@/api/v1/internal/internal.service";
 import { initializeLogStream } from "@/services/log/log.service";
 
+const observabilityConfig = loadObservabilityConfig({
+  serviceName: "job-service",
+  serviceVersion: process.env.SERVICE_VERSION ?? "1.0.0",
+});
+
+// Initialize telemetry BEFORE anything else
+initTelemetry(observabilityConfig);
+
+const logger = getLogger();
+
 async function bootstrap() {
+  // Start metrics server on separate port
+  createMetricsServer(observabilityConfig);
+
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL || "info",
@@ -28,6 +41,9 @@ async function bootstrap() {
     },
   });
 
+  // Register observability plugin (request_id, trace context, HTTP metrics)
+  await app.register(observabilityPlugin, { serviceName: "job-service" });
+
   // CORS
   await app.register(cors, {
     origin: config.app.corsOrigin,
@@ -42,8 +58,15 @@ async function bootstrap() {
   await artifactRoutes(app);
   await internalRoutes(app);
 
+  // Prometheus metrics endpoint
+  app.get("/metrics", async (_, reply) => {
+    reply.header("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+    reply.send(await getMetrics());
+  });
+
   // Initialize rabbit mq connection
   await connectRabbitMQ();
+
   // Set up periodic outbox event publishing (every 5 seconds)
   setInterval(async () => {
     try {
@@ -53,19 +76,11 @@ async function bootstrap() {
     }
   }, 5000);
 
-  //initialise job update consumer
+  // Initialise job update consumer
   UpdateJobState();
 
   // Initialize log streaming service
   initializeLogStream();
-  // Error handler
-  app.setErrorHandler((error, request, reply) => {
-    logger.error({ error, path: request.url }, "Unhandled error");
-    reply.status(500).send({
-      error: "INTERNAL_ERROR",
-      message: "Internal server error",
-    });
-  });
 
   try {
     await app.listen({ port: config.app.port, host: config.app.host });
@@ -80,6 +95,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error) => {
-  logger.error({ error }, "Bootstrap failed");
+  logger.fatal({ error }, "Bootstrap failed");
   process.exit(1);
 });

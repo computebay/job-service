@@ -1,17 +1,10 @@
-import pino from "pino";
+import { createLogger } from "@computebay/observability";
 
-const isDev = process.env.NODE_ENV !== "production";
-
-export const logger = pino({
-  level: process.env.LOG_LEVEL || "info",
-  ...(process.env.NODE_ENV !== "production" && {
-    transport: {
-      target: "pino-pretty",
-      options: {
-        colorize: true,
-        translateTime: "SYS:standard",
-        ignore: "pid,hostname",
-      },
-    },
-  }),
+const logger = createLogger({
+  serviceName: process.env.OTEL_SERVICE_NAME ?? "job-service",
+  serviceVersion: process.env.SERVICE_VERSION ?? "1.0.0",
+  environment: process.env.NODE_ENV ?? "development",
+  logLevel: process.env.LOG_LEVEL ?? "info",
 });
+
+export { logger };

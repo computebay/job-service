@@ -1,5 +1,7 @@
 import { PrismaClient } from "../generated/prisma/client";
-import { logger } from "./logger";
+import { getLogger } from "@computebay/observability";
+
+const logger = getLogger();
 
 let prisma: PrismaClient;
 
@@ -14,3 +16,4 @@ if (process.env.NODE_ENV === "production") {
 }
 
 export const db = prisma;
+logger.info("Prisma client initialized");

@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { FastifyInstance } from "fastify";
 import { internalMiddleware } from "../../../middlewares/internal.middleware";
 
 import { InternalJobController } from "./internal.controller";

@@ -1,6 +1,8 @@
 import Redis from "ioredis";
 import { config } from "./config";
-import { logger } from "../libs/logger";
+import { getLogger } from "@computebay/observability";
+
+const logger = getLogger();
 
 let publisher: Redis | null = null;
 let subscriber: Redis | null = null;

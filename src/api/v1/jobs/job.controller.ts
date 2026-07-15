@@ -2,13 +2,14 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { jobService } from "../../../services/job/job.service";
 import {
   createJobSchema,
-  updateJobStateSchema,
   cancelJobSchema,
 } from "../../../validators/job.schema";
 import { AuthenticatedRequest } from "../../../types/auth";
 import { CreateJobInput } from "../../../types/job.types";
-import { logger } from "../../../libs/logger";
+import { getLogger } from "@computebay/observability";
 import { z } from "zod";
+
+const logger = getLogger();
 
 function toJobResponse(job: {
   id: string;
@@ -49,10 +50,6 @@ function toJobResponse(job: {
 }
 
 export class JobController {
-  /**
-   * Create a new job
-   * POST /api/v1/jobs
-   */
   static async createJob(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -71,7 +68,6 @@ export class JobController {
         return;
       }
 
-      // Validate request body
       const body = createJobSchema.parse(request.body);
 
       logger.info(
@@ -79,7 +75,6 @@ export class JobController {
         "Creating job",
       );
 
-      // Idempotency: return existing job
       const existingJob = await jobService.getExistingJobForIdempotencyKey(
         idempotencyKey,
         userId,
@@ -145,10 +140,6 @@ export class JobController {
     }
   }
 
-  /**
-   * Get job by ID
-   * GET /api/v1/jobs/:id
-   */
   static async getJob(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -187,10 +178,6 @@ export class JobController {
     }
   }
 
-  /**
-   * List jobs for authenticated user
-   * GET /api/v1/jobs
-   */
   static async listJobs(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -228,10 +215,6 @@ export class JobController {
     }
   }
 
-  /**
-   * Cancel a job
-   * POST /api/v1/jobs/:id/cancel
-   */
   static async cancelJob(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -295,10 +278,6 @@ export class JobController {
     }
   }
 
-  /**
-   * Hard Cancel a job (Emits job.cancel event)
-   * POST /api/v1/jobs/:id/hard-cancel
-   */
   static async hardCancelJob(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -327,7 +306,6 @@ export class JobController {
         return;
       }
 
-      // We explicitly emit the cancel event bypass outbox
       await jobService.emitCancelJobEvent(id);
 
       reply.send({

@@ -6,8 +6,10 @@ import {
 } from "./job.state";
 import { CreateJobInput } from "@/types/job.types";
 import { JobStatus } from "@prisma/client";
-import { logger } from "@/libs/logger";
+import { getLogger, instrumentedPublish } from "@computebay/observability";
 import { getChannel, getExchangeName } from "@/config/rabbitmq";
+
+const logger = getLogger();
 
 export class JobService {
   private repository: JobRepository;
@@ -16,9 +18,6 @@ export class JobService {
     this.repository = new JobRepository();
   }
 
-  /**
-   * If the idempotency key was already used, return the existing job; otherwise null.
-   */
   async getExistingJobForIdempotencyKey(
     idempotencyKey: string,
     userId: string,
@@ -31,16 +30,12 @@ export class JobService {
     return this.repository.getJobById(existing.jobId);
   }
 
-  /**
-   * Create a new job with idempotency support
-   */
   async createJob(
     input: CreateJobInput,
     userId: string,
     orgId: string,
     idempotencyKey?: string,
   ) {
-    // Check idempotency key if provided
     if (idempotencyKey) {
       const existing = await this.repository.getIdempotencyKey(
         idempotencyKey,
@@ -57,13 +52,12 @@ export class JobService {
 
     logger.info({ userId, orgId, jobType: input.jobType }, "Creating new job");
 
-    // Create job with outbox event in single transaction
     const job = await this.repository.createJob(input, userId, orgId, [
       {
         aggregateType: "job",
         eventType: "CREATED",
         payload: {
-          jobId: undefined, // Will be set to job.id by createJob
+          jobId: undefined,
           orgId: input.orgId,
           repoUrl: input.repoUrl,
           branch: input.branch ?? "main",
@@ -79,7 +73,6 @@ export class JobService {
       },
     ]);
 
-    // Store idempotency key if provided
     if (idempotencyKey) {
       await this.repository.createIdempotencyKey(
         idempotencyKey,
@@ -92,16 +85,10 @@ export class JobService {
     return job;
   }
 
-  /**
-   * Get job by ID
-   */
   async getJob(jobId: string) {
     return this.repository.getJobById(jobId);
   }
 
-  /**
-   * Get jobs for a user
-   */
   async getJobs(
     userId: string,
     orgId: string,
@@ -111,9 +98,6 @@ export class JobService {
     return this.repository.getJobsByUserId(userId, orgId, limit, offset);
   }
 
-  /**
-   * Update job status with state machine validation
-   */
   async updateJobStatus(
     jobId: string,
     newStatus: JobStatus,
@@ -127,7 +111,6 @@ export class JobService {
       throw new Error(`Job ${jobId} not found`);
     }
 
-    // Validate state transition
     try {
       validateStateTransition(job.status, newStatus);
     } catch (error) {
@@ -143,7 +126,6 @@ export class JobService {
       "Updating job status",
     );
 
-    // Generate outbox event
     const eventType = getEventType(job.status, newStatus);
 
     const updatedJob = await this.repository.updateJobStatus(
@@ -167,16 +149,12 @@ export class JobService {
     return updatedJob;
   }
 
-  /**
-   * Cancel a job
-   */
   async cancelJob(jobId: string, reason?: string) {
     const job = await this.repository.getJobById(jobId);
     if (!job) {
       throw new Error(`Job ${jobId} not found`);
     }
 
-    // Can only cancel QUEUED or RUNNING jobs
     if (![JobStatus.QUEUED, JobStatus.RUNNING].includes(job.status)) {
       throw new InvalidStateTransitionError(job.status, JobStatus.CANCELLED);
     }
@@ -186,9 +164,6 @@ export class JobService {
     return this.updateJobStatus(jobId, JobStatus.CANCELLED);
   }
 
-  /**
-   * Publish outbox events
-   */
   async publishOutboxEvents() {
     const events = await this.repository.getUnpublishedEvents(100);
 
@@ -218,10 +193,11 @@ export class JobService {
 
       const message = Buffer.from(JSON.stringify(event.payload));
 
-      const published = channel.publish(exchange, routingKey, message, {
-        persistent: true,
-        contentType: "application/json",
-      });
+      const published = instrumentedPublish(channel, {
+        exchange,
+        routingKey,
+        service: "job-service",
+      }, message);
 
       if (!published) {
         logger.error("Failed to publish message");
@@ -233,11 +209,6 @@ export class JobService {
     logger.info({ count: events.length }, "Finished publishing events");
   }
 
-  /**
-   * Explicitly emit a job.cancel event to tell the agent to stop and teardown the job.
-   * Immediately transitions the job to CANCELLING so the status reflects intent.
-   * The worker is responsible for transitioning to CANCELLED once teardown is complete.
-   */
   async emitCancelJobEvent(jobId: string) {
     const job = await this.repository.getJobById(jobId);
 
@@ -245,9 +216,7 @@ export class JobService {
       logger.error({ jobId }, "Cancel event skipped: Job not found");
       return;
     }
-    // Mark as CANCELLED immediately. If the job is assigned to a node, also emit
-    // a CANCEL event to the worker's queue so it can tear down. If unassigned
-    // (QUEUED), just update the status — no worker to notify.
+
     await this.updateJobStatus(jobId, JobStatus.CANCELLED);
     logger.info({ jobId }, "Job status set to CANCELLED");
 
@@ -257,8 +226,6 @@ export class JobService {
     }
 
     const channel = getChannel();
-
-    // Bypass the restricted exchange by routing directly to the worker's explicit queue
     const queue = `queue.node.${job.assignedNodeId}`;
 
     const payload = {
@@ -268,7 +235,6 @@ export class JobService {
     };
     const message = Buffer.from(JSON.stringify(payload));
 
-    // Emit to the default "" exchange, targeting the queue directly
     const published = channel.publish("", queue, message, {
       persistent: true,
       contentType: "application/json",
@@ -282,5 +248,4 @@ export class JobService {
   }
 }
 
-// Export singleton instance
 export const jobService = new JobService();

@@ -1,9 +1,11 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { FastifyRequest, FastifyReply } from "fastify";
 import { jobService } from "../../../services/job/job.service";
 import { updateJobStateSchema } from "../../../validators/job.schema";
 
-import { logger } from "../../../libs/logger";
+import { getLogger } from "@computebay/observability";
 import { z } from "zod";
+
+const logger = getLogger();
 
 function toJobResponse(job: {
   id: string;
@@ -44,10 +46,6 @@ function toJobResponse(job: {
 }
 
 export class InternalJobController {
-  /**
-   * Update job state (internal only)
-   * POST /api/v1/internal/jobs/:id/state
-   */
   static async updateJobState(
     request: FastifyRequest,
     reply: FastifyReply,

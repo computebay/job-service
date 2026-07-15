@@ -1,8 +1,10 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { logger } from "../libs/logger";
-import { AuthPayload, AuthenticatedRequest } from "../types/auth";
+import { getLogger } from "@computebay/observability";
+import { AuthenticatedRequest } from "../types/auth";
 import { verifyToken } from "@/utils/token";
-import { Jwt, JwtPayload } from "jsonwebtoken";
+import { JwtPayload } from "jsonwebtoken";
+
+const logger = getLogger();
 
 export async function authMiddleware(
   request: FastifyRequest,
@@ -30,7 +32,6 @@ export async function authMiddleware(
     try {
       const decoded = verifyToken(token) as JwtPayload;
 
-      // Validate required fields
       if (!decoded.sub || !decoded.orgId) {
         logger.warn("Token missing required fields");
         return reply.status(401).send({

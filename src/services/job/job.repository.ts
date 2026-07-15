@@ -1,11 +1,9 @@
 import { db } from "../../libs/prisma";
 import { Job, JobStatus, OutboxEvent, Prisma } from "../../generated/prisma/client";
 import { CreateJobInput } from "../../types/job.types";
+import { instrumentedQuery } from "@computebay/observability";
 
 export class JobRepository {
-  /**
-   * Create a new job within a transaction
-   */
   async createJob(
     input: CreateJobInput,
     userId: string,
@@ -34,7 +32,6 @@ export class JobRepository {
         },
       });
 
-      // Insert outbox events in same transaction
       for (const event of outboxEvents) {
         event.payload.jobId = job.id;
         event.payload.createdAt = job.createdAt;
@@ -53,18 +50,14 @@ export class JobRepository {
     });
   }
 
-  /**
-   * Get job by ID
-   */
   async getJobById(jobId: string): Promise<Job | null> {
-    return db.job.findUnique({
-      where: { id: jobId },
-    });
+    return instrumentedQuery("SELECT", "jobs", "job-service", () =>
+      db.job.findUnique({
+        where: { id: jobId },
+      }),
+    );
   }
 
-  /**
-   * Get all jobs for a user
-   */
   async getJobsByUserId(
     userId: string,
     orgId: string,
@@ -72,31 +65,32 @@ export class JobRepository {
     offset: number = 0,
   ): Promise<{ jobs: Job[]; total: number }> {
     const [jobs, total] = await Promise.all([
-      db.job.findMany({
-        where: {
-          ownerUserId: userId,
-          orgId,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: limit,
-        skip: offset,
-      }),
-      db.job.count({
-        where: {
-          ownerUserId: userId,
-          orgId,
-        },
-      }),
+      instrumentedQuery("SELECT", "jobs", "job-service", () =>
+        db.job.findMany({
+          where: {
+            ownerUserId: userId,
+            orgId,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: limit,
+          skip: offset,
+        }),
+      ),
+      instrumentedQuery("COUNT", "jobs", "job-service", () =>
+        db.job.count({
+          where: {
+            ownerUserId: userId,
+            orgId,
+          },
+        }),
+      ),
     ]);
 
     return { jobs, total };
   }
 
-  /**
-   * Update job status within a transaction
-   */
   async updateJobStatus(
     jobId: string,
     newStatus: JobStatus,
@@ -120,7 +114,6 @@ export class JobRepository {
         },
       });
 
-      // Insert outbox events
       if (outboxEvents && outboxEvents.length > 0) {
         for (const event of outboxEvents) {
           await tx.outboxEvent.create({
@@ -139,9 +132,6 @@ export class JobRepository {
     });
   }
 
-  /**
-   * Create a job attempt
-   */
   async createJobAttempt(
     jobId: string,
     attemptNo: number,
@@ -156,29 +146,25 @@ export class JobRepository {
     });
   }
 
-  /**
-   * Check if idempotency key exists for a user
-   */
   async getIdempotencyKey(
     key: string,
     userId: string,
   ): Promise<{ jobId: string } | null> {
-    return db.idempotencyKey.findUnique({
-      where: {
-        key_ownerUserId: {
-          key,
-          ownerUserId: userId,
+    return instrumentedQuery("SELECT", "idempotency_keys", "job-service", () =>
+      db.idempotencyKey.findUnique({
+        where: {
+          key_ownerUserId: {
+            key,
+            ownerUserId: userId,
+          },
         },
-      },
-      select: {
-        jobId: true,
-      },
-    });
+        select: {
+          jobId: true,
+        },
+      }),
+    );
   }
 
-  /**
-   * Create idempotency key
-   */
   async createIdempotencyKey(
     key: string,
     userId: string,
@@ -193,24 +179,20 @@ export class JobRepository {
     });
   }
 
-  /**
-   * Get unpublished outbox events
-   */
   async getUnpublishedEvents(limit: number = 100): Promise<OutboxEvent[]> {
-    return db.outboxEvent.findMany({
-      where: {
-        published: false,
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-      take: limit,
-    });
+    return instrumentedQuery("SELECT", "outbox_events", "job-service", () =>
+      db.outboxEvent.findMany({
+        where: {
+          published: false,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+        take: limit,
+      }),
+    );
   }
 
-  /**
-   * Mark event as published
-   */
   async markEventAsPublished(eventId: string): Promise<void> {
     await db.outboxEvent.update({
       where: { id: eventId },
