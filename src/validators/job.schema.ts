@@ -8,28 +8,42 @@ export const resourcesSchema = z.object({
   memoryMB: z.number().positive("memoryMB must be a positive number"),
 });
 
-export const createJobSchema = z
-  .object({
-    jobType: z.string().min(1, "jobType is required"),
-    repoUrl: z
-      .string()
-      .min(1, "repoUrl is required")
-      .url("repoUrl must be a valid URL")
-      .refine(
-        (url) => GITHUB_HTTPS_REGEX.test(url),
-        "repoUrl must be an HTTPS public GitHub URL (e.g. https://github.com/owner/repo)"
-      ),
-    branch: z.string().min(1).optional().default("main"),
-    runtime: z.string().min(1, "runtime is required"),
-    startCommand: z.string().min(1, "startCommand is required"),
-    resources: resourcesSchema,
-    retryPolicy: z.record(z.unknown()).optional(),
-    priority: z.number().int().min(0).max(10).optional().default(0),
-    orgId: z.string(),
-    servicePort: z.number().int().positive("servicePort must be a positive number"),
-    buildCommand: z.string().optional(),
-    runtimeCommand: z.string().optional(),
-  });
+const baseJobSchema = z.object({
+  jobType: z.enum(["batch", "service"]),
+  repoUrl: z
+    .string()
+    .min(1, "repoUrl is required")
+    .url("repoUrl must be a valid URL")
+    .refine(
+      (url) => GITHUB_HTTPS_REGEX.test(url),
+      "repoUrl must be an HTTPS public GitHub URL (e.g. https://github.com/owner/repo)"
+    ),
+  branch: z.string().min(1).optional().default("main"),
+  runtime: z.string().min(1, "runtime is required"),
+  startCommand: z.string().min(1, "startCommand is required"),
+  resources: resourcesSchema,
+  retryPolicy: z.record(z.unknown()).optional(),
+  priority: z.number().int().min(0).max(10).optional().default(0),
+  orgId: z.string(),
+  networkEnabled: z.boolean().optional(),
+  buildCommand: z.string().optional(),
+  runtimeCommand: z.string().optional(),
+});
+
+const batchJobSchema = baseJobSchema.extend({
+  jobType: z.literal("batch"),
+  servicePort: z.number().int().positive().optional(),
+});
+
+const serviceJobSchema = baseJobSchema.extend({
+  jobType: z.literal("service"),
+  servicePort: z.number().int().positive("servicePort must be a positive number"),
+});
+
+export const createJobSchema = z.discriminatedUnion("jobType", [
+  batchJobSchema,
+  serviceJobSchema,
+]);
 
 export const updateJobStateSchema = z.object({
   status: z.enum(["QUEUED", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"]),

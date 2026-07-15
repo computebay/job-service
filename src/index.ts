@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import { config } from "./config/config";
 import { logger } from "./libs/logger";
 import { jobRoutes } from "./api/v1/jobs/job.routes";
+import { artifactRoutes } from "./api/v1/jobs/artifact.routes";
 import { internalRoutes } from "./api/v1/internal/internal.routes";
 import { healthRoutes } from "./api/v1/health/health.routes";
 import { jobService } from "./services/job/job.service";
@@ -38,6 +39,7 @@ async function bootstrap() {
   // Register routes
   await healthRoutes(app);
   await jobRoutes(app);
+  await artifactRoutes(app);
   await internalRoutes(app);
 
   // Initialize rabbit mq connection

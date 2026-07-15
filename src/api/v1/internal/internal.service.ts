@@ -99,6 +99,12 @@ export const UpdateJobState = async () => {
               data: {
                 status: JobStatus.COMPLETED,
                 completedAt: new Date(),
+                outputArtifacts: {
+                  logs: data.logObjectKey ? { key: data.logObjectKey } : null,
+                  stdout: (data.output as string)?.substring(0, 10000) ?? "",
+                  exitCode: data.exitCode ?? 0,
+                  artifacts: data.artifacts ?? [],
+                },
               },
             });
             logger.info({ jobId }, "Job marked as completed");
@@ -111,7 +117,12 @@ export const UpdateJobState = async () => {
               data: {
                 status: JobStatus.FAILED,
                 error: (data.error as string) || "Unknown error",
-                outputArtifacts: (data.output as string) || "Unknown output",
+                outputArtifacts: {
+                  logs: data.logObjectKey ? { key: data.logObjectKey } : null,
+                  stdout: (data.output as string)?.substring(0, 10000) ?? "",
+                  exitCode: data.exitCode ?? 1,
+                  artifacts: data.artifacts ?? [],
+                },
                 failedAt: new Date(),
               },
             });

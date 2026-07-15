@@ -42,8 +42,13 @@ export async function jobRoutes(app: FastifyInstance) {
           }
 
           if (job.status === JobStatus.COMPLETED || job.status === JobStatus.FAILED || job.status === JobStatus.CANCELLED) {
-            const output = job.outputArtifacts || "";
-            const lines = (output as string).split("\n").filter((l: string) => l.length > 0);
+            const outputArtifacts = job.outputArtifacts as any;
+            const stdout = outputArtifacts?.stdout ?? "";
+            const logKey = outputArtifacts?.logs?.key;
+            
+            // If we have a log key in MinIO, we could redirect or stream from there
+            // For now, use the stored stdout for compatibility
+            const lines = stdout.split("\n").filter((l: string) => l.length > 0);
             const logLines = lines.map((line: string) => ({
               ts: job.completedAt?.toISOString() || new Date().toISOString(),
               level: "info",

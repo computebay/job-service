@@ -7,7 +7,7 @@ export interface JobResources {
 
 export interface CreateJobInput {
   id?: string; // optional: when provided, job is created with this id
-  jobType: string;
+  jobType: "batch" | "service";
   repoUrl: string;
   branch?: string;
   runtime: string;
@@ -16,7 +16,7 @@ export interface CreateJobInput {
   retryPolicy?: Record<string, unknown> | null;
   priority?: number;
   orgId: string;
-  servicePort: number;
+  servicePort?: number;
   buildCommand?: string;
   runtimeCommand?: string;
 }
