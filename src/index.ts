@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { config } from "./config/config";
-import { getLogger, observabilityPlugin, getMetrics, initTelemetry, loadObservabilityConfig, createMetricsServer } from "@computebay/observability";
+import { createLogger, observabilityPlugin, getMetrics, initTelemetry, loadObservabilityConfig, createMetricsServer } from "@computebay/observability";
 import { jobRoutes } from "./api/v1/jobs/job.routes";
 import { artifactRoutes } from "./api/v1/jobs/artifact.routes";
 import { internalRoutes } from "./api/v1/internal/internal.routes";
@@ -19,7 +19,7 @@ const observabilityConfig = loadObservabilityConfig({
 // Initialize telemetry BEFORE anything else
 initTelemetry(observabilityConfig);
 
-const logger = getLogger();
+const logger = createLogger(observabilityConfig);
 
 async function bootstrap() {
   // Start metrics server on separate port
