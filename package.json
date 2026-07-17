@@ -17,20 +17,21 @@
     "lint": "bunx eslint . --ext .ts"
   },
   "dependencies": {
-    "@computebay/observability": "file:../packages/observability",
     "@aws-sdk/client-s3": "^3.1000.0",
     "@aws-sdk/s3-request-presigner": "^3.1000.0",
+    "@computebay/observability": "file:../packages/observability",
     "@fastify/cors": "^11.2.0",
     "@prisma/client": "^6.9.0",
     "amqplib": "^0.10.9",
     "dotenv": "^17.3.1",
     "fastify": "^5.0.0",
+    "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.3",
-    "pino": "^10.1.0",
-    "uuid": "^9.0.1",
-    "zod": "^3.22.4",
     "jszip": "^3.10.1",
-    "ioredis": "^5.4.1"
+    "pino": "^10.1.0",
+    "pino-loki": "^3.0.0",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.8",
