@@ -28,6 +28,7 @@ const baseJobSchema = z.object({
   networkEnabled: z.boolean().optional(),
   buildCommand: z.string().optional(),
   runtimeCommand: z.string().optional(),
+  hasArtifacts: z.boolean().optional(),
 });
 
 const batchJobSchema = baseJobSchema.extend({

@@ -69,6 +69,7 @@ export class JobService {
           servicePort: input.servicePort,
           buildCommand: input.buildCommand,
           runtimeCommand: input.runtimeCommand,
+          hasArtifacts: input.hasArtifacts,
         },
       },
     ]);

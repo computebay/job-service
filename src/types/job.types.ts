@@ -19,6 +19,7 @@ export interface CreateJobInput {
   servicePort?: number;
   buildCommand?: string;
   runtimeCommand?: string;
+  hasArtifacts?: boolean;
 }
 
 export interface UpdateJobStateInput {
