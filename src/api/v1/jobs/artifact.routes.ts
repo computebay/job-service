@@ -146,11 +146,11 @@ export async function artifactRoutes(app: FastifyInstance) {
             });
           }
 
-          const encodedKey = encodeURIComponent(artifact.key);
-          const url = `${process.env.MINIO_ENDPOINT_PUBLIC}/${process.env.MINIO_BUCKET}/${encodedKey}`;
+          const presignedUrl = await getPresignedUrl(artifact.key);
 
-          return reply.send({
-            url,
+          reply.send({
+            url: presignedUrl,
+            expiresIn: 900,
             artifact: {
               name: artifact.name,
               sizeBytes: artifact.sizeBytes,
