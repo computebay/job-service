@@ -85,7 +85,10 @@ export async function artifactRoutes(app: FastifyInstance) {
           reply.send({
             jobId: id,
             status: job.status,
-            artifacts,
+            artifacts: artifacts.map((a: any) => ({
+              id: a.name,
+              ...a,
+            })),
             logs: outputArtifacts?.logs ?? null,
           });
         } catch (error) {
@@ -98,19 +101,25 @@ export async function artifactRoutes(app: FastifyInstance) {
     );
 
     /**
-     * Get download URL for a specific artifact
-     * GET /api/v1/jobs/:id/artifacts/:artifactId/download
+     * Get download URL for a specific artifact by name
+     * GET /api/v1/jobs/:id/artifacts/:name/download
      */
-    fastify.get<{ Params: { id: string; artifactId: string } }>(
-      "/api/v1/jobs/:id/artifacts/:artifactId/download",
+    fastify.get<{
+      Params: { id: string };
+      Querystring: { name: string };
+    }>(
+      "/api/v1/jobs/:id/artifacts/download",
       async (request: FastifyRequest, reply: FastifyReply) => {
         try {
-          const { id, artifactId } = request.params;
+          const { id } = request.params;
+          const { name } = request.query;
+
           const authReq = request as any;
           const userId = authReq.user.sub;
           const orgId = authReq.user.orgId;
 
           const job = await prisma.job.findUnique({ where: { id } });
+
           if (!job) {
             return reply.status(404).send({
               error: "NOT_FOUND",
@@ -127,8 +136,9 @@ export async function artifactRoutes(app: FastifyInstance) {
 
           const outputArtifacts = job.outputArtifacts as any;
           const artifacts = outputArtifacts?.artifacts ?? [];
-          
-          const artifact = artifacts.find((a: any) => a.key === artifactId || a.name === artifactId);
+
+          const artifact = artifacts.find((a: any) => a.name === name);
+
           if (!artifact) {
             return reply.status(404).send({
               error: "NOT_FOUND",
@@ -136,11 +146,11 @@ export async function artifactRoutes(app: FastifyInstance) {
             });
           }
 
-          const presignedUrl = await getPresignedUrl(artifact.key);
+          const encodedKey = encodeURIComponent(artifact.key);
+          const url = `${process.env.MINIO_ENDPOINT_PUBLIC}/${process.env.MINIO_BUCKET}/${encodedKey}`;
 
-          reply.send({
-            url: presignedUrl,
-            expiresIn: 900,
+          return reply.send({
+            url,
             artifact: {
               name: artifact.name,
               sizeBytes: artifact.sizeBytes,
@@ -148,14 +158,13 @@ export async function artifactRoutes(app: FastifyInstance) {
             },
           });
         } catch (error) {
-          reply.status(500).send({
+          return reply.status(500).send({
             error: "INTERNAL_ERROR",
             message: "Failed to generate download URL",
           });
         }
       }
     );
-
     /**
      * Get download URL for job logs
      * GET /api/v1/jobs/:id/logs/download
@@ -186,7 +195,7 @@ export async function artifactRoutes(app: FastifyInstance) {
 
           const outputArtifacts = job.outputArtifacts as any;
           const logKey = outputArtifacts?.logs?.key;
-          
+
           if (!logKey) {
             return reply.status(404).send({
               error: "NOT_FOUND",
