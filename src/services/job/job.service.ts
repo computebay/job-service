@@ -53,25 +53,33 @@ export class JobService {
     logger.info({ userId, orgId, jobType: input.jobType }, "Creating new job");
 
     const job = await this.repository.createJob(input, userId, orgId, [
-      {
-        aggregateType: "job",
-        eventType: "CREATED",
-        payload: {
-          jobId: undefined,
-          orgId: input.orgId,
-          repoUrl: input.repoUrl,
-          branch: input.branch ?? "main",
-          runtime: input.runtime,
-          startCommand: input.startCommand,
-          resources: input.resources,
-          jobType: input.jobType,
-          priority: input.priority ?? 0,
-          servicePort: input.servicePort,
-          buildCommand: input.buildCommand,
-          runtimeCommand: input.runtimeCommand,
-          hasArtifacts: input.hasArtifacts,
+        {
+          aggregateType: "job",
+          eventType: "CREATED",
+          payload: {
+            jobId: undefined,
+            orgId: input.orgId,
+            repoUrl: input.repoUrl,
+            branch: input.branch ?? "main",
+            runtime: input.runtime,
+            startCommand: input.startCommand,
+            resources: {
+              cpu: input.resources.cpu,
+              memoryMB: (input.resources as any).memoryMB ?? (input.resources as any).memoryMb,
+              gpu: (input.resources as any).gpu,
+            },
+            jobType: input.jobType,
+            priority: input.priority ?? 0,
+            servicePort: input.servicePort,
+            buildCommand: input.buildCommand,
+            runtimeCommand: input.runtimeCommand,
+            hasArtifacts: input.hasArtifacts,
+            image: input.image,
+            command: input.command,
+            input: input.input,
+            output: input.output,
+          },
         },
-      },
     ]);
 
     if (idempotencyKey) {

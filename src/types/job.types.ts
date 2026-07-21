@@ -32,6 +32,7 @@ export interface CreateJobInput {
   branch?: string;
   runtime?: string;
   startCommand?: string;
+  image?: string;
   command?: string[];
   resources: JobResources | BatchImageResources;
   retryPolicy?: Record<string, unknown> | null;
