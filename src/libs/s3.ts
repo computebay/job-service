@@ -11,10 +11,23 @@ export const s3 = new S3Client({
   },
 });
 
+const s3Public = process.env.MINIO_ENDPOINT_PUBLIC
+  ? new S3Client({
+      region: process.env.MINIO_REGION!,
+      endpoint: process.env.MINIO_ENDPOINT_PUBLIC,
+      forcePathStyle: true,
+      credentials: {
+        accessKeyId: process.env.MINIO_ACCESS_KEY!,
+        secretAccessKey: process.env.MINIO_SECRET_KEY!,
+      },
+    })
+  : s3;
+
 export const BUCKET_NAME = process.env.MINIO_BUCKET!;
 
 /**
- * Generate a presigned URL for downloading an object from MinIO
+ * Generate a presigned URL for downloading an object from MinIO.
+ * Uses MINIO_ENDPOINT_PUBLIC if set, otherwise falls back to MINIO_ENDPOINT.
  * @param key Object key in MinIO
  * @param expiresIn Expiration time in seconds (default: 15 minutes)
  * @returns Presigned URL
@@ -28,15 +41,5 @@ export async function getPresignedUrl(
     Key: key,
   });
   
-  return getSignedUrl(s3, command, { expiresIn });
-}
-
-/**
- * Get the public MinIO endpoint URL for an object
- * @param key Object key in MinIO
- * @returns Direct URL to the object
- */
-export function getPublicUrl(key: string): string {
-  const endpoint = process.env.MINIO_ENDPOINT!;
-  return `${endpoint}/${BUCKET_NAME}/${key}`;
+  return getSignedUrl(s3Public, command, { expiresIn });
 }
