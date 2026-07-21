@@ -85,18 +85,9 @@ export class JobController {
       }
 
       const createInput: CreateJobInput = {
-        jobType: body.jobType,
-        repoUrl: body.repoUrl,
-        branch: body.branch,
-        runtime: body.runtime,
-        startCommand: body.startCommand,
-        resources: body.resources,
+        ...body,
         retryPolicy: body.retryPolicy ?? null,
         priority: body.priority ?? 0,
-        orgId: body.orgId,
-        servicePort: body.servicePort,
-        buildCommand: body.buildCommand,
-        runtimeCommand: body.runtimeCommand,
       };
 
       const job = await jobService.createJob(

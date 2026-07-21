@@ -5,14 +5,32 @@ export interface JobResources {
   memoryMB: number;
 }
 
+export interface InputSpec {
+  type: "s3";
+  url: string;
+  mountPath: string;
+}
+
+export interface OutputSpec {
+  type: "s3";
+  uploadFrom: string;
+}
+
+export interface BatchImageResources {
+  cpu: number;
+  memoryMb: number;
+  gpu: "any" | "none";
+}
+
 export interface CreateJobInput {
   id?: string; // optional: when provided, job is created with this id
-  jobType: "batch" | "service";
-  repoUrl: string;
+  jobType: "batch" | "service" | "batch-image";
+  repoUrl?: string;
   branch?: string;
-  runtime: string;
-  startCommand: string;
-  resources: JobResources;
+  runtime?: string;
+  startCommand?: string;
+  command?: string[];
+  resources: JobResources | BatchImageResources;
   retryPolicy?: Record<string, unknown> | null;
   priority?: number;
   orgId: string;
@@ -20,6 +38,8 @@ export interface CreateJobInput {
   buildCommand?: string;
   runtimeCommand?: string;
   hasArtifacts?: boolean;
+  input?: InputSpec;
+  output?: OutputSpec;
 }
 
 export interface UpdateJobStateInput {

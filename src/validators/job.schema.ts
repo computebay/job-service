@@ -8,8 +8,27 @@ export const resourcesSchema = z.object({
   memoryMB: z.number().positive("memoryMB must be a positive number"),
 });
 
-const baseJobSchema = z.object({
-  jobType: z.enum(["batch", "service"]),
+export const inputSpecSchema = z.object({
+  type: z.literal("s3"),
+  url: z.string().min(1, "input.url is required"),
+  mountPath: z.string().min(1, "input.mountPath is required"),
+});
+
+export const outputSpecSchema = z.object({
+  type: z.literal("s3"),
+  uploadFrom: z.string().min(1, "output.uploadFrom is required"),
+});
+
+export const batchImageResourcesSchema = z.object({
+  cpu: z.number().positive("cpu must be a positive number"),
+  memoryMb: z.number().positive("memoryMb must be a positive number"),
+  gpu: z.enum(["any", "none"], {
+    errorMap: () => ({ message: "resources.gpu must be 'any' or 'none'" }),
+  }),
+});
+
+const batchJobSchema = z.object({
+  jobType: z.literal("batch"),
   repoUrl: z
     .string()
     .min(1, "repoUrl is required")
@@ -29,21 +48,52 @@ const baseJobSchema = z.object({
   buildCommand: z.string().optional(),
   runtimeCommand: z.string().optional(),
   hasArtifacts: z.boolean().optional(),
-});
-
-const batchJobSchema = baseJobSchema.extend({
-  jobType: z.literal("batch"),
   servicePort: z.number().int().positive().optional(),
 });
 
-const serviceJobSchema = baseJobSchema.extend({
+const serviceJobSchema = z.object({
   jobType: z.literal("service"),
+  repoUrl: z
+    .string()
+    .min(1, "repoUrl is required")
+    .url("repoUrl must be a valid URL")
+    .refine(
+      (url) => GITHUB_HTTPS_REGEX.test(url),
+      "repoUrl must be an HTTPS public GitHub URL (e.g. https://github.com/owner/repo)"
+    ),
+  branch: z.string().min(1).optional().default("main"),
+  runtime: z.string().min(1, "runtime is required"),
+  startCommand: z.string().min(1, "startCommand is required"),
+  resources: resourcesSchema,
+  retryPolicy: z.record(z.unknown()).optional(),
+  priority: z.number().int().min(0).max(10).optional().default(0),
+  orgId: z.string(),
+  networkEnabled: z.boolean().optional(),
+  buildCommand: z.string().optional(),
+  runtimeCommand: z.string().optional(),
+  hasArtifacts: z.boolean().optional(),
   servicePort: z.number().int().positive("servicePort must be a positive number"),
+});
+
+const batchImageJobSchema = z.object({
+  jobType: z.literal("batch-image"),
+  image: z.string().min(1, "image is required for batch-image jobs"),
+  command: z
+    .array(z.string().min(1))
+    .min(1, "command must be a non-empty array for batch-image jobs"),
+  input: inputSpecSchema,
+  output: outputSpecSchema,
+  resources: batchImageResourcesSchema,
+  retryPolicy: z.record(z.unknown()).optional(),
+  priority: z.number().int().min(0).max(10).optional().default(0),
+  orgId: z.string(),
+  hasArtifacts: z.boolean().optional(),
 });
 
 export const createJobSchema = z.discriminatedUnion("jobType", [
   batchJobSchema,
   serviceJobSchema,
+  batchImageJobSchema,
 ]);
 
 export const updateJobStateSchema = z.object({
