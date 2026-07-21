@@ -7,7 +7,10 @@ export interface JobResources {
 
 export interface InputSpec {
   type: "s3";
-  url: string;
+  url?: string;
+  name?: string;
+  /** Staging key from POST /api/v1/uploads. Resolved to inputs/<jobId>/<name> at runtime. */
+  stagingKey?: string;
   mountPath: string;
 }
 

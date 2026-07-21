@@ -21,6 +21,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1000.0",
     "@computebay/observability": "file:../packages/observability",
     "@fastify/cors": "^11.2.0",
+    "@fastify/multipart": "^10.1.0",
     "@prisma/client": "^6.9.0",
     "amqplib": "^0.10.9",
     "dotenv": "^17.3.1",

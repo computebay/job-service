@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import { config } from "./config/config";
 import { createLogger, observabilityPlugin, getMetrics, initTelemetry, loadObservabilityConfig, createMetricsServer } from "@computebay/observability";
 import { jobRoutes } from "./api/v1/jobs/job.routes";
@@ -51,6 +52,9 @@ async function bootstrap() {
     allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Internal-Token"],
     credentials: true,
   });
+
+  // Multipart file uploads (for artifact upload)
+  await app.register(multipart, { limits: { fileSize: 1024 * 1024 * 500 } });
 
   // Register routes
   await healthRoutes(app);

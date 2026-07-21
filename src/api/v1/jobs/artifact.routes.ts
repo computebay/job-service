@@ -1,9 +1,53 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import prisma from "@/config/db";
 import { authMiddleware } from "@/middlewares/auth.middleware";
-import { getPresignedUrl } from "@/libs/s3";
+import { getPresignedUrl, s3, BUCKET_NAME } from "@/libs/s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { randomUUID } from "node:crypto";
 
 export async function artifactRoutes(app: FastifyInstance) {
+  /**
+   * Upload a file to staging (no jobId required).
+   * POST /api/v1/uploads  (multipart/form-data, field: file)
+   * Returns a stagingKey that can be referenced when creating a batch-image job.
+   */
+  app.post("/api/v1/uploads", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send({ error: "BAD_REQUEST", message: "No file uploaded" });
+      }
+
+      const filename = data.filename;
+      const key = `staging/${randomUUID()}-${filename}`;
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of data.file) {
+        chunks.push(chunk);
+      }
+      const body = Buffer.concat(chunks);
+
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: key,
+          Body: body,
+          ContentType: data.mimetype || "application/octet-stream",
+        })
+      );
+
+      reply.status(201).send({
+        key,
+        name: filename,
+        sizeBytes: body.length,
+        contentType: data.mimetype,
+      });
+    } catch (error) {
+      request.log.error({ error }, "Failed to upload to staging");
+      reply.status(500).send({ error: "INTERNAL_ERROR", message: "Failed to upload" });
+    }
+  });
+
   app.register(async (fastify) => {
     fastify.addHook("preHandler", authMiddleware);
 

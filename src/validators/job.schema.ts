@@ -10,9 +10,14 @@ export const resourcesSchema = z.object({
 
 export const inputSpecSchema = z.object({
   type: z.literal("s3"),
-  url: z.string().min(1, "input.url is required"),
+  url: z.string().url().optional(),
+  name: z.string().min(1).optional(),
+  stagingKey: z.string().min(1).optional(),
   mountPath: z.string().min(1, "input.mountPath is required"),
-});
+}).refine(
+  (val) => val.url || val.stagingKey || val.name,
+  { message: "input.url, input.stagingKey, or input.name is required" }
+);
 
 export const outputSpecSchema = z.object({
   type: z.literal("s3"),
