@@ -76,6 +76,19 @@ export const UpdateJobState = async () => {
         case "job.started":
         case "service.started":
         case "service.running":
+          // A stop signal may have landed while the worker was picking the job
+          // up — never revive a CANCELLED job back to RUNNING.
+          if (job.status === JobStatus.CANCELLED) {
+            logger.info({ jobId }, "Ignoring start event for cancelled job");
+            break;
+          }
+          // Anonymized worker specs only (cpu/memory totals) — the worker
+          // never sends identity (nodeId/machineId stay server-side).
+          const worker = data.worker as { cpu?: unknown; memoryMb?: unknown } | undefined;
+          const workerInfo =
+            worker && typeof worker.cpu === "number" && typeof worker.memoryMb === "number"
+              ? { cpu: worker.cpu, memoryMb: worker.memoryMb }
+              : undefined;
           await instrumentedQuery("UPDATE", "jobs", "job-service", () =>
             prisma.job.update({
               where: { id: jobId },
@@ -83,14 +96,43 @@ export const UpdateJobState = async () => {
                 assignedNodeId: nodeId,
                 status: JobStatus.RUNNING,
                 startedAt: new Date(),
+                ...(workerInfo && { workerInfo }),
               },
             }),
           );
           logger.info({ jobId }, "Job started running");
           break;
 
+        case "job.cancelled":
+        case "service.cancelled":
+        case "service.stopped":
+          await instrumentedQuery("UPDATE", "jobs", "job-service", () =>
+            prisma.job.update({
+              where: { id: jobId },
+              data: {
+                status: JobStatus.CANCELLED,
+                cancelledAt: new Date(),
+                error: (data.error as string) ?? "Stopped by user",
+                outputArtifacts: {
+                  logs: data.logObjectKey ? { key: data.logObjectKey } : (job.outputArtifacts as any)?.logs ?? null,
+                  stdout: (data.output as string)?.substring(0, 10000) ?? "",
+                  exitCode: data.exitCode ?? 137,
+                  artifacts: data.artifacts ?? [],
+                },
+              },
+            }),
+          );
+          sendJobCompletion(jobId);
+          logger.info({ jobId }, "Job marked as cancelled");
+          break;
+
         case "job.completed":
         case "service.completed":
+          // A late completion must not overwrite a user-requested CANCELLED.
+          if (job.status === JobStatus.CANCELLED) {
+            logger.info({ jobId }, "Ignoring completion for cancelled job");
+            break;
+          }
           await instrumentedQuery("UPDATE", "jobs", "job-service", () =>
             prisma.job.update({
               where: { id: jobId },
@@ -112,6 +154,12 @@ export const UpdateJobState = async () => {
 
         case "job.failed":
         case "service.failed":
+          // A late failure must not overwrite a user-requested CANCELLED
+          // (e.g. exit 137 from the kill itself).
+          if (job.status === JobStatus.CANCELLED) {
+            logger.info({ jobId }, "Ignoring failure for cancelled job");
+            break;
+          }
           await instrumentedQuery("UPDATE", "jobs", "job-service", () =>
             prisma.job.update({
               where: { id: jobId },
@@ -138,6 +186,15 @@ export const UpdateJobState = async () => {
             const channel = getLogChannel(jobId);
             const payload = JSON.stringify({ chunk: data.chunk, jobId });
             await redis.publish(channel, payload);
+            // Ring-buffer backlog so late SSE subscribers (page load,
+            // reconnects after refresh) get recent history, not just
+            // future chunks. 24h TTL — logs live in MinIO long-term.
+            const backlogKey = `${channel}:backlog`;
+            const backlogPipeline = redis.pipeline();
+            backlogPipeline.rpush(backlogKey, payload);
+            backlogPipeline.ltrim(backlogKey, -1000, -1);
+            backlogPipeline.expire(backlogKey, 86400);
+            await backlogPipeline.exec();
             logger.debug({ jobId }, "Published log chunk to Redis");
           } catch (err) {
             logger.error({ error: err, jobId }, "Failed to publish log chunk to Redis");

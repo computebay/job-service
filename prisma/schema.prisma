@@ -49,6 +49,8 @@ model Job {
   // Outputs (populated by executor)
   outputArtifacts Json?
   assignedNodeId  String?
+  // Anonymized worker specs at pickup ({ cpu, memoryMb }) — no contributor identity
+  workerInfo      Json?
   error           String?
 
   // Timestamps

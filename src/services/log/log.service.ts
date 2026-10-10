@@ -1,5 +1,5 @@
 import { FastifyReply } from "fastify";
-import { getRedisSubscriber, getLogChannel } from "@/config/redis";
+import { getRedisSubscriber, getLogChannel, getRedisPublisher } from "@/config/redis";
 import { getLogger } from "@computebay/observability";
 import Redis from "ioredis";
 
@@ -16,6 +16,9 @@ interface LogStreamConnection {
   reply: FastifyReply;
   redisChannel: string;
   unsubscribe: () => void;
+  /** Live messages arriving while the backlog replay is in flight. */
+  pending: string[];
+  replaying: boolean;
 }
 
 const activeStreams = new Map<string, Set<LogStreamConnection>>();
@@ -49,7 +52,7 @@ function parseChunkToLogLine(chunk: string): LogLine {
   };
 }
 
-export function subscribeToJobLogs(jobId: string, reply: FastifyReply): void {
+export function subscribeToJobLogs(jobId: string, reply: FastifyReply): () => void {
   const redisChannel = getLogChannel(jobId);
   const subscriber = getGlobalSubscriber();
 
@@ -67,6 +70,8 @@ export function subscribeToJobLogs(jobId: string, reply: FastifyReply): void {
         }
       }
     },
+    pending: [],
+    replaying: true,
   };
 
   if (!activeStreams.has(redisChannel)) {
@@ -79,19 +84,55 @@ export function subscribeToJobLogs(jobId: string, reply: FastifyReply): void {
     });
   }
 
-  activeStreams.get(redisChannel)!.add(connection);
+  const connections = activeStreams.get(redisChannel)!;
+  connections.add(connection);
+
+  // Replay recent history first so late subscribers (page load, refresh,
+  // reconnect) don't miss everything emitted before they connected.
+  // Live messages arriving mid-replay are buffered and flushed after,
+  // so nothing is lost or duplicated at the boundary.
+  void (async () => {
+    try {
+      const pub = getRedisPublisher();
+      const backlog = await pub.lrange(`${redisChannel}:backlog`, 0, -1);
+      for (const message of backlog) {
+        try {
+          const data = JSON.parse(message) as { chunk: string; jobId: string };
+          const logLine = parseChunkToLogLine(data.chunk);
+          if (!logLine.msg) continue;
+          connection.reply.raw.write(`data: ${JSON.stringify(logLine)}\n\n`);
+        } catch {
+          // Connection dead mid-replay — stop silently.
+          connection.unsubscribe();
+          return;
+        }
+      }
+    } catch (err) {
+      logger.error({ error: err, jobId }, "Failed to replay log backlog");
+    } finally {
+      connection.replaying = false;
+      for (const message of connection.pending) {
+        writeLiveMessage(connections, message);
+      }
+      connection.pending = [];
+    }
+  })();
+
+  return connection.unsubscribe;
 }
 
-export function handleRedisMessage(channel: string, message: string): void {
-  const connections = activeStreams.get(channel);
-  if (!connections || connections.size === 0) return;
-
+function writeLiveMessage(connections: Set<LogStreamConnection>, message: string): void {
   try {
     const data = JSON.parse(message) as { chunk: string; jobId: string };
     const logLine = parseChunkToLogLine(data.chunk);
+    if (!logLine.msg) return;
     const sseData = `data: ${JSON.stringify(logLine)}\n\n`;
 
-    for (const conn of connections) {
+    for (const conn of [...connections]) {
+      if (conn.replaying) {
+        conn.pending.push(message);
+        continue;
+      }
       try {
         conn.reply.raw.write(sseData);
       } catch {
@@ -99,8 +140,14 @@ export function handleRedisMessage(channel: string, message: string): void {
       }
     }
   } catch (err) {
-    logger.error({ error: err, channel }, "Failed to process Redis message");
+    logger.error({ error: err }, "Failed to process Redis message");
   }
+}
+
+export function handleRedisMessage(channel: string, message: string): void {
+  const connections = activeStreams.get(channel);
+  if (!connections || connections.size === 0) return;
+  writeLiveMessage(connections, message);
 }
 
 export function sendJobCompletion(jobId: string): void {

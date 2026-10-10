@@ -113,6 +113,8 @@ export class JobService {
     updates?: {
       startedAt?: Date;
       completedAt?: Date;
+      cancelledAt?: Date;
+      failedAt?: Date;
     },
   ) {
     const job = await this.repository.getJobById(jobId);
@@ -170,7 +172,9 @@ export class JobService {
 
     logger.info({ jobId, reason }, "Cancelling job");
 
-    return this.updateJobStatus(jobId, JobStatus.CANCELLED);
+    return this.updateJobStatus(jobId, JobStatus.CANCELLED, {
+      cancelledAt: new Date(),
+    });
   }
 
   async publishOutboxEvents() {
@@ -186,21 +190,31 @@ export class JobService {
       const channel = getChannel();
       let exchange = getExchangeName();
 
-      const routingKey = `job.${event.eventType.toLowerCase()}`;
+      let routingKey = `job.${event.eventType.toLowerCase()}`;
+      let message = Buffer.from(JSON.stringify(event.payload));
 
-      // If it's a cancellation event, route directly to the node processing it
+      // Cancellation must reach the worker that holds the container.
+      // The old path (node.<id>.events exchange, outbox payload shape) is
+      // consumed by nothing — publish the worker-understood CANCEL payload
+      // straight to the worker's queue instead.
       if (event.eventType === "CANCELLED") {
         const payload = event.payload as any;
         if (payload?.jobId) {
           const job = await this.repository.getJobById(payload.jobId);
 
           if (job?.assignedNodeId) {
-            exchange = `node.${job.assignedNodeId}.events`;
+            exchange = "";
+            routingKey = `queue.node.${job.assignedNodeId}`;
+            message = Buffer.from(
+              JSON.stringify({
+                type: "CANCEL",
+                jobId: payload.jobId,
+                timestamp: new Date().toISOString(),
+              }),
+            );
           }
         }
       }
-
-      const message = Buffer.from(JSON.stringify(event.payload));
 
       const published = instrumentedPublish(channel, {
         exchange,
@@ -226,7 +240,9 @@ export class JobService {
       return;
     }
 
-    await this.updateJobStatus(jobId, JobStatus.CANCELLED);
+    await this.updateJobStatus(jobId, JobStatus.CANCELLED, {
+      cancelledAt: new Date(),
+    });
     logger.info({ jobId }, "Job status set to CANCELLED");
 
     if (!job.assignedNodeId) {
@@ -236,6 +252,11 @@ export class JobService {
 
     const channel = getChannel();
     const queue = `queue.node.${job.assignedNodeId}`;
+    // Priority lane: a dedicated cancel queue with its own consumer, so the
+    // signal doesn't wait behind a running job (head-of-line blocking when
+    // prefetch is saturated). The main queue gets a copy as fallback.
+    const cancelQueue = `${queue}.cancel`;
+    await channel.assertQueue(cancelQueue, { durable: true });
 
     const payload = {
       type: "CANCEL",
@@ -244,12 +265,16 @@ export class JobService {
     };
     const message = Buffer.from(JSON.stringify(payload));
 
+    const publishedPriority = channel.publish("", cancelQueue, message, {
+      persistent: true,
+      contentType: "application/json",
+    });
     const published = channel.publish("", queue, message, {
       persistent: true,
       contentType: "application/json",
     });
 
-    if (!published) {
+    if (!publishedPriority || !published) {
       logger.error({ jobId, queue }, "Failed to publish job cancellation payload");
     } else {
       logger.info({ jobId, queue }, "Emitted job cancellation payload straight to worker queue");

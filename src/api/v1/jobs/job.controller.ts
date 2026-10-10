@@ -26,9 +26,15 @@ function toJobResponse(job: {
   resources: unknown;
   retryPolicy?: unknown;
   outputArtifacts?: unknown;
+  assignedNodeId?: string | null;
+  workerInfo?: unknown;
+  error?: string | null;
   createdAt: Date;
+  scheduledAt?: Date | null;
   startedAt?: Date | null;
   completedAt?: Date | null;
+  cancelledAt?: Date | null;
+  failedAt?: Date | null;
 }) {
   return {
     id: job.id,
@@ -44,9 +50,15 @@ function toJobResponse(job: {
     resources: job.resources,
     retryPolicy: job.retryPolicy,
     outputArtifacts: job.outputArtifacts,
+    assignedNodeId: job.assignedNodeId ?? null,
+    workerInfo: job.workerInfo ?? null,
+    error: job.error ?? null,
     createdAt: job.createdAt.toISOString(),
+    scheduledAt: job.scheduledAt?.toISOString(),
     startedAt: job.startedAt?.toISOString(),
     completedAt: job.completedAt?.toISOString(),
+    cancelledAt: job.cancelledAt?.toISOString(),
+    failedAt: job.failedAt?.toISOString(),
   };
 }
 

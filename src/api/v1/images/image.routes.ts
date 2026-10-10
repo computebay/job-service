@@ -130,6 +130,10 @@ export async function imageRoutes(app: FastifyInstance) {
             });
           }
           const info = body as any;
+          // Full Hub page markdown ("How to use this image", examples…).
+          // Truncated — some pages (changelogs) run very long.
+          const FULL_DESC_LIMIT = 15000;
+          const full = typeof info.full_description === "string" ? info.full_description : "";
           return reply.send({
             name: info.name,
             namespace: info.namespace,
@@ -138,6 +142,8 @@ export async function imageRoutes(app: FastifyInstance) {
             pullCount: info.pull_count ?? 0,
             isOfficial: namespace === "library",
             lastUpdated: info.last_updated ?? null,
+            fullDescription: full.slice(0, FULL_DESC_LIMIT),
+            fullDescriptionTruncated: full.length > FULL_DESC_LIMIT,
           });
         } catch (error) {
           request.log.error({ error }, "Docker Hub repo lookup failed");

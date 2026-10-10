@@ -97,6 +97,8 @@ export class JobRepository {
     updates?: {
       startedAt?: Date;
       completedAt?: Date;
+      cancelledAt?: Date;
+      failedAt?: Date;
     },
     outboxEvents?: Array<{
       aggregateType: string;
@@ -111,6 +113,8 @@ export class JobRepository {
           status: newStatus,
           ...(updates?.startedAt && { startedAt: updates.startedAt }),
           ...(updates?.completedAt && { completedAt: updates.completedAt }),
+          ...(updates?.cancelledAt && { cancelledAt: updates.cancelledAt }),
+          ...(updates?.failedAt && { failedAt: updates.failedAt }),
         },
       });
 

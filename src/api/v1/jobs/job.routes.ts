@@ -79,10 +79,10 @@ export async function jobRoutes(app: FastifyInstance) {
 
           reply.raw.write(":ok\n\n");
 
-          subscribeToJobLogs(id, reply);
+          const unsubscribe = subscribeToJobLogs(id, reply);
 
           request.raw.on("close", () => {
-            // Connection closed
+            unsubscribe();
           });
         } catch (error) {
           reply.status(500).send({ error: "INTERNAL_ERROR", message: "Failed to stream logs" });
