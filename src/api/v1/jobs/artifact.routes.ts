@@ -10,7 +10,8 @@ import {
   buildStagingKey,
   sanitizeFilename,
 } from "@/libs/s3";
-import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import JSZip from "jszip";
 
 export async function artifactRoutes(app: FastifyInstance) {
   app.register(async (fastify) => {
@@ -274,6 +275,117 @@ export async function artifactRoutes(app: FastifyInstance) {
           return reply.status(500).send({
             error: "INTERNAL_ERROR",
             message: "Failed to generate download URL",
+          });
+        }
+      }
+    );
+    /**
+     * Zip all output artifacts and return a download URL.
+     * POST /api/v1/jobs/:id/artifacts/archive
+     * -> { url (presigned, 900s), expiresIn, fileCount, sizeBytes, key }
+     *
+     * The zip is written back to object storage (jobs/<id>/all-artifacts.zip)
+     * so the browser can fetch it via presigned URL with no auth header.
+     */
+    fastify.post<{ Params: { id: string } }>(
+      "/api/v1/jobs/:id/artifacts/archive",
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+          const { id } = request.params as { id: string };
+          const authReq = request as any;
+          const userId = authReq.user.sub;
+          const orgId = authReq.user.orgId;
+
+          const job = await prisma.job.findUnique({ where: { id } });
+          if (!job) {
+            return reply.status(404).send({
+              error: "NOT_FOUND",
+              message: "Job not found",
+            });
+          }
+
+          if (job.ownerUserId !== userId || job.orgId !== orgId) {
+            return reply.status(403).send({
+              error: "FORBIDDEN",
+              message: "Access denied",
+            });
+          }
+
+          const outputArtifacts = job.outputArtifacts as any;
+          const artifacts = (outputArtifacts?.artifacts ?? []) as any[];
+
+          if (artifacts.length === 0) {
+            return reply.status(404).send({
+              error: "NOT_FOUND",
+              message: "No artifacts to archive yet",
+            });
+          }
+
+          const MAX_FILES = 100;
+          const MAX_TOTAL_BYTES = 1024 * 1024 * 500;
+          if (artifacts.length > MAX_FILES) {
+            return reply.status(400).send({
+              error: "ARCHIVE_TOO_LARGE",
+              message: `Too many files to archive (${artifacts.length}, max ${MAX_FILES})`,
+            });
+          }
+          const totalBytes = artifacts.reduce(
+            (n, a) => n + (a.sizeBytes ?? 0),
+            0
+          );
+          if (totalBytes > MAX_TOTAL_BYTES) {
+            return reply.status(400).send({
+              error: "ARCHIVE_TOO_LARGE",
+              message: "Artifacts exceed the 500MB archive limit",
+            });
+          }
+
+          const zip = new JSZip();
+          for (const artifact of artifacts) {
+            const res = await s3.send(
+              new GetObjectCommand({ Bucket: BUCKET_NAME, Key: artifact.key })
+            );
+            const bytes = await res.Body?.transformToByteArray();
+            if (!bytes) {
+              return reply.status(500).send({
+                error: "INTERNAL_ERROR",
+                message: `Failed to read artifact ${artifact.name}`,
+              });
+            }
+            zip.file(artifact.name, Buffer.from(bytes));
+          }
+
+          // STORE (no recompression) — outputs like PNGs don't compress further
+          // and this keeps archive generation fast.
+          const zipBuffer = (await zip.generateAsync({
+            type: "nodebuffer",
+            compression: "STORE",
+          })) as Buffer;
+
+          const archiveKey = `jobs/${id}/all-artifacts.zip`;
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: BUCKET_NAME,
+              Key: archiveKey,
+              Body: zipBuffer,
+              ContentType: "application/zip",
+            })
+          );
+
+          const presignedUrl = await getPresignedUrl(archiveKey);
+
+          return reply.send({
+            url: presignedUrl,
+            expiresIn: 900,
+            key: archiveKey,
+            fileCount: artifacts.length,
+            sizeBytes: zipBuffer.length,
+          });
+        } catch (error) {
+          request.log.error({ error }, "Failed to build artifacts archive");
+          return reply.status(500).send({
+            error: "INTERNAL_ERROR",
+            message: "Failed to build archive",
           });
         }
       }
