@@ -47,6 +47,56 @@ export async function imageRoutes(app: FastifyInstance) {
     fastify.addHook("preHandler", authMiddleware);
 
     /**
+     * Search Docker Hub repositories (for the image combobox).
+     * GET /api/v1/images/search?q=ffmpeg&limit=8
+     * -> { results: [{ ref, description, starCount, pullCount, isOfficial }] }
+     */
+    fastify.get(
+      "/api/v1/images/search",
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { q, limit } = request.query as { q?: string; limit?: string };
+        const query = (q ?? "").trim();
+        if (!query || query.length > 100) {
+          return reply.status(400).send({
+            error: "VALIDATION_ERROR",
+            message: "Query param q (1-100 chars) is required",
+          });
+        }
+        const size = Math.min(Math.max(parseInt(limit ?? "8", 10) || 8, 1), 25);
+        try {
+          const { status, body } = await fetchHub(
+            `/search/repositories/?query=${encodeURIComponent(query)}&page_size=${size}`
+          );
+          if (status !== 200 || body == null) {
+            return reply.status(502).send({
+              error: "HUB_UNAVAILABLE",
+              message: "Docker Hub search failed, try again",
+            });
+          }
+          const results = ((body as any).results ?? []).map((r: any) => {
+            const repoName: string = r.repo_name ?? "";
+            const slash = repoName.indexOf("/");
+            const ref = slash === -1 ? `library/${repoName}` : repoName;
+            return {
+              ref,
+              description: r.short_description ?? "",
+              starCount: r.star_count ?? 0,
+              pullCount: r.pull_count ?? 0,
+              isOfficial: r.is_official ?? slash === -1,
+            };
+          });
+          return reply.send({ results });
+        } catch (error) {
+          request.log.error({ error }, "Docker Hub search failed");
+          return reply.status(502).send({
+            error: "HUB_UNAVAILABLE",
+            message: "Docker Hub search failed, try again",
+          });
+        }
+      }
+    );
+
+    /**
      * Verify a Docker Hub repository exists + show metadata for the picker.
      * GET /api/v1/images/:namespace/:repo
      */
