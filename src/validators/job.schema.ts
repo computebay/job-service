@@ -86,7 +86,9 @@ const batchImageJobSchema = z.object({
   command: z
     .array(z.string().min(1))
     .min(1, "command must be a non-empty array for batch-image jobs"),
-  input: inputSpecSchema,
+  // Optional: jobs that generate output from scratch or fetch their own data
+  // set no input (toggle "needs input file" off in the UI).
+  input: inputSpecSchema.optional(),
   output: outputSpecSchema,
   resources: batchImageResourcesSchema,
   retryPolicy: z.record(z.unknown()).optional(),

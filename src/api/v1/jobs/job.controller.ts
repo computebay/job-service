@@ -6,6 +6,7 @@ import {
 } from "../../../validators/job.schema";
 import { AuthenticatedRequest } from "../../../types/auth";
 import { CreateJobInput } from "../../../types/job.types";
+import { stagingKeyExists } from "../../../libs/s3";
 import { getLogger } from "@computebay/observability";
 import { z } from "zod";
 
@@ -70,6 +71,29 @@ export class JobController {
 
       const body = createJobSchema.parse(request.body);
 
+      // Fail fast: a typo'd stagingKey currently surfaces minutes later as a
+      // worker NoSuchKey failure. Validate existence up front instead.
+      // (input itself is optional — toggle "needs input file" off.)
+      if (body.jobType === "batch-image" && body.input?.stagingKey) {
+        const key = body.input.stagingKey;
+        if (!key.startsWith("staging/")) {
+          reply.status(400).send({
+            error: "VALIDATION_ERROR",
+            message: "input.stagingKey must start with staging/",
+          });
+          return;
+        }
+        const exists = await stagingKeyExists(key);
+        if (!exists) {
+          reply.status(400).send({
+            error: "STAGING_NOT_FOUND",
+            message:
+              "Staged input not found. Re-upload the file, then submit again.",
+          });
+          return;
+        }
+      }
+
       logger.info(
         { userId, orgId, idempotencyKey, jobType: body.jobType },
         "Creating job",
@@ -80,7 +104,15 @@ export class JobController {
         userId,
       );
       if (existingJob) {
-        reply.status(200).send(toJobResponse(existingJob));
+        reply.status(200).send({
+          ...toJobResponse(existingJob),
+          // Input spec lives only in the outbox payload (not in the Job row),
+          // so echo it back for the UI to display without a second lookup.
+          image: (body as any).image,
+          command: (body as any).command,
+          input: (body as any).input,
+          output: (body as any).output,
+        });
         return;
       }
 
@@ -105,7 +137,13 @@ export class JobController {
         return;
       }
 
-      reply.status(201).send(toJobResponse(job));
+      reply.status(201).send({
+        ...toJobResponse(job),
+        image: (body as any).image,
+        command: (body as any).command,
+        input: (body as any).input,
+        output: (body as any).output,
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         logger.warn({ errors: error.errors }, "Validation error");

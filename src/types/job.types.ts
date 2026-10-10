@@ -9,7 +9,7 @@ export interface InputSpec {
   type: "s3";
   url?: string;
   name?: string;
-  /** Staging key from POST /api/v1/uploads. Resolved to inputs/<jobId>/<name> at runtime. */
+  /** Staging key from POST /api/v1/uploads/presign (+ PUT) or POST /api/v1/uploads. Consumed as staging://{key} by worker-agent. */
   stagingKey?: string;
   mountPath: string;
 }

@@ -1,10 +1,11 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
-import { config } from "./config/config";
+import { config, isOriginAllowed } from "./config/config";
 import { createLogger, observabilityPlugin, getMetrics, initTelemetry, loadObservabilityConfig, createMetricsServer } from "@computebay/observability";
 import { jobRoutes } from "./api/v1/jobs/job.routes";
 import { artifactRoutes } from "./api/v1/jobs/artifact.routes";
+import { imageRoutes } from "./api/v1/images/image.routes";
 import { internalRoutes } from "./api/v1/internal/internal.routes";
 import { healthRoutes } from "./api/v1/health/health.routes";
 import { jobService } from "./services/job/job.service";
@@ -45,9 +46,18 @@ async function bootstrap() {
   // Register observability plugin (request_id, trace context, HTTP metrics)
   await app.register(observabilityPlugin, { serviceName: "job-service" });
 
-  // CORS
+  // CORS — dynamic origin check so localhost + Tailscale IPs/DNS just work.
+  // @fastify/cors reflects the request Origin when the callback returns true,
+  // which is required for `credentials: true` (wildcard "*" is rejected by browsers).
   await app.register(cors, {
-    origin: config.app.corsOrigin,
+    origin: (origin, cb) => {
+      if (isOriginAllowed(origin)) {
+        cb(null, true);
+      } else {
+        logger.warn({ origin }, "Blocked CORS request from disallowed origin");
+        cb(new Error("Not allowed by CORS"), false);
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Internal-Token"],
     credentials: true,
@@ -60,6 +70,7 @@ async function bootstrap() {
   await healthRoutes(app);
   await jobRoutes(app);
   await artifactRoutes(app);
+  await imageRoutes(app);
   await internalRoutes(app);
 
   // Prometheus metrics endpoint
