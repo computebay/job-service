@@ -54,6 +54,10 @@ model Job {
   error           String?
 
   // Timestamps
+  // All DateTime columns map to PostgreSQL timestamptz (absolute instants).
+  // The API serializes them as ISO-8601 UTC strings; log-stream timestamps
+  // additionally travel as Unix epoch millis. Nothing in this pipeline
+  // formats instants through a server/worker-local timezone.
   createdAt       DateTime   @default(now())
   scheduledAt     DateTime?
   startedAt       DateTime?

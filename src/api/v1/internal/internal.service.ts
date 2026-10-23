@@ -184,7 +184,9 @@ export const UpdateJobState = async () => {
           try {
             const redis = getRedisPublisher();
             const channel = getLogChannel(jobId);
-            const payload = JSON.stringify({ chunk: data.chunk, jobId });
+            // Preserve the worker emission instant (epoch ms). The log layer
+            // falls back to receipt time when older workers omit it.
+            const payload = JSON.stringify({ chunk: data.chunk, jobId, ts: data.ts });
             await redis.publish(channel, payload);
             // Ring-buffer backlog so late SSE subscribers (page load,
             // reconnects after refresh) get recent history, not just

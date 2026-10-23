@@ -14,7 +14,8 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "format": "prettier --write .",
-    "lint": "bunx eslint . --ext .ts"
+    "lint": "bunx eslint . --ext .ts",
+    "test": "bun test src"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1000.0",

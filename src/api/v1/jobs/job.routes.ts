@@ -49,8 +49,10 @@ export async function jobRoutes(app: FastifyInstance) {
             // If we have a log key in MinIO, we could redirect or stream from there
             // For now, use the stored stdout for compatibility
             const lines = stdout.split("\n").filter((l: string) => l.length > 0);
+            // Epoch millis (absolute instant); readers also accept legacy ISO.
+            const completedTs = job.completedAt?.getTime() ?? Date.now();
             const logLines = lines.map((line: string) => ({
-              ts: job.completedAt?.toISOString() || new Date().toISOString(),
+              ts: completedTs,
               level: "info",
               msg: line,
             }));

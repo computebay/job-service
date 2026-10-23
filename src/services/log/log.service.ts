@@ -6,9 +6,27 @@ import Redis from "ioredis";
 const logger = getLogger();
 
 interface LogLine {
-  ts: string;
+  /** Canonical: Unix epoch milliseconds (absolute instant, no timezone). */
+  ts: number;
   level: string;
   msg: string;
+}
+
+/**
+ * Normalize any timestamp representation to epoch millis.
+ *
+ * Accepts the canonical number form plus legacy ISO-8601 strings (old Redis
+ * backlog entries, terminal stdout replay, persisted browser logs). Anything
+ * unparseable falls back to `fallbackNow` (receipt time) so the line still
+ * renders instead of crashing formatters downstream.
+ */
+export function normalizeLogTimestamp(ts: unknown, fallbackNow: number = Date.now()): number {
+  if (typeof ts === "number" && Number.isFinite(ts)) return ts;
+  if (typeof ts === "string") {
+    const parsed = Date.parse(ts);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return fallbackNow;
 }
 
 interface LogStreamConnection {
@@ -31,11 +49,11 @@ function getGlobalSubscriber(): Redis {
   return globalSubscriber;
 }
 
-function parseChunkToLogLine(chunk: string): LogLine {
+export function parseChunkToLogLine(chunk: string, ts?: unknown): LogLine {
   const lines = chunk.split("\n").filter((l) => l.length > 0);
   if (lines.length === 0) {
     return {
-      ts: new Date().toISOString(),
+      ts: normalizeLogTimestamp(ts),
       level: "info",
       msg: "",
     };
@@ -46,7 +64,9 @@ function parseChunkToLogLine(chunk: string): LogLine {
   const level = levelMatch ? levelMatch[1].toLowerCase() : "info";
 
   return {
-    ts: new Date().toISOString(),
+    // Worker emission instant when present; receipt instant otherwise
+    // (pre-epoch rollout workers). Never reformatted through local time.
+    ts: normalizeLogTimestamp(ts),
     level,
     msg: lines.join("\n"),
   };
@@ -97,8 +117,8 @@ export function subscribeToJobLogs(jobId: string, reply: FastifyReply): () => vo
       const backlog = await pub.lrange(`${redisChannel}:backlog`, 0, -1);
       for (const message of backlog) {
         try {
-          const data = JSON.parse(message) as { chunk: string; jobId: string };
-          const logLine = parseChunkToLogLine(data.chunk);
+          const data = JSON.parse(message) as { chunk: string; jobId: string; ts?: unknown };
+          const logLine = parseChunkToLogLine(data.chunk, data.ts);
           if (!logLine.msg) continue;
           connection.reply.raw.write(`data: ${JSON.stringify(logLine)}\n\n`);
         } catch {
@@ -123,8 +143,8 @@ export function subscribeToJobLogs(jobId: string, reply: FastifyReply): () => vo
 
 function writeLiveMessage(connections: Set<LogStreamConnection>, message: string): void {
   try {
-    const data = JSON.parse(message) as { chunk: string; jobId: string };
-    const logLine = parseChunkToLogLine(data.chunk);
+    const data = JSON.parse(message) as { chunk: string; jobId: string; ts?: unknown };
+    const logLine = parseChunkToLogLine(data.chunk, data.ts);
     if (!logLine.msg) return;
     const sseData = `data: ${JSON.stringify(logLine)}\n\n`;
 
